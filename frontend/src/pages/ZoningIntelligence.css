@@ -1,0 +1,65 @@
+.zoning-container {
+    height: calc(100vh - 73px);
+    /* 100vh - top nav height */
+}
+
+/* Hide scrollbar for sidebar but allow scroll */
+.zoning-sidebar::-webkit-scrollbar {
+    display: none;
+}
+
+.zoning-sidebar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.alert-card {
+    background-color: var(--surface);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-light);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.alert-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 4px;
+    background-color: transparent;
+}
+
+.alert-card.border-primary-light::before {
+    background-color: var(--primary);
+}
+
+.alert-card.border-success-light::before {
+    background-color: var(--success);
+}
+
+.alert-card.border-purple-light::before {
+    background-color: var(--purple);
+}
+
+.alert-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.icon-circle {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.bg-info-light {
+    background-color: rgba(59, 130, 246, 0.1);
+}
