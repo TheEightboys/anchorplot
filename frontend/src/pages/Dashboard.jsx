@@ -318,7 +318,7 @@ export default function Dashboard() {
                         <h3 className="text-sm font-bold text-text-primary">JV Deal Room</h3>
                     </div>
                     <p className="text-xs text-text-secondary leading-relaxed">
-                        Manage joint ventures with real-time equity tracking, milestones, and secure messaging.
+                        Manage joint ventures with real-time equity tracking, milestones and secure messaging.
                     </p>
                 </div>
 
@@ -330,7 +330,7 @@ export default function Dashboard() {
                         <h3 className="text-sm font-bold text-text-primary">Legal Compliance</h3>
                     </div>
                     <p className="text-xs text-text-secondary leading-relaxed">
-                        Access attorney vetting, compliance checklists, and regulatory tracking tools.
+                        Access attorney vetting, compliance checklists and regulatory tracking tools.
                     </p>
                 </div>
             </div>

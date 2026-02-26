@@ -174,7 +174,7 @@ const SetupAdmin = () => {
                 <div className="flex-1">
                   <h3 className="font-bold text-text-primary mb-2">Seed Sample Data (Optional)</h3>
                   <p className="text-sm text-text-secondary mb-4">
-                    Add sample properties, projects, and users for testing
+                    Add sample properties, projects and users for testing
                   </p>
                   <button
                     onClick={handleSeedData}

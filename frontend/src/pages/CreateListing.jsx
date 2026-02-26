@@ -154,7 +154,7 @@ export default function CreateListing() {
                             </h2>
                             <div className="bg-info/5 border border-info/10 rounded-xl p-4 flex items-start gap-3">
                                 <Info size={16} className="text-info mt-0.5 shrink-0" />
-                                <p className="text-xs text-text-secondary">Your exact address and parcel ID are stored securely and <strong>never shown</strong> until a gated stage is reached. Marketplace visitors see only city, neighborhood band, and lot size range.</p>
+                                <p className="text-xs text-text-secondary">Your exact address and parcel ID are stored securely and <strong>never shown</strong> until a gated stage is reached. Marketplace visitors see only city, neighborhood band and lot size range.</p>
                             </div>
                             <fieldset className="space-y-4">
                                 <div>
@@ -429,7 +429,7 @@ export default function CreateListing() {
                                 <Check size={20} className="text-primary" /> Review & Submit
                             </h2>
                             <div className="bg-info/5 border border-info/10 rounded-xl p-4 text-xs text-text-secondary">
-                                <strong>What developers & investors will see:</strong> City, neighborhood band, lot size range, zoning district, overlays, structure summary, build potential, and target outcomes. Your address, parcel ID, and name are <strong>never</strong> shown.
+                                <strong>What developers & investors will see:</strong> City, neighborhood band, lot size range, zoning district, overlays, structure summary, build potential and target outcomes. Your address, parcel ID and name are <strong>never</strong> shown.
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 {[

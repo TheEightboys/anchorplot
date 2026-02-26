@@ -60,7 +60,7 @@ const Login = () => {
                         <span className="text-[#4ec878]"> smarter real estate deals</span>
                     </h2>
                     <p className="text-white/60 text-sm leading-relaxed mb-8">
-                        The three-sided marketplace where landowners, developers, and investors structure joint ventures with full anonymization, attorney-gated compliance, and transparent equity ledgers.
+                        The three-sided marketplace where landowners, developers and investors structure joint ventures with full anonymization, attorney-gated compliance and transparent equity ledgers.
                     </p>
 
                     <div className="grid grid-cols-2 gap-4">

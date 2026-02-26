@@ -84,7 +84,7 @@ export default function AffordableHousing() {
             <div className="max-w-5xl mx-auto p-6 lg:p-8">
                 <PageHeader
                     title="Affordable Housing"
-                    subtitle="Track affordable housing projects, AMI commitments, and public funding programs."
+                    subtitle="Track affordable housing projects, AMI commitments and public funding programs."
                 />
 
                 {/* Stats Row */}
@@ -175,7 +175,7 @@ export default function AffordableHousing() {
                 {tab === 'compliance' && (
                     <div className="space-y-4">
                         <div className="bg-info/5 border border-info/10 rounded-xl p-4 text-xs text-text-secondary mb-2">
-                            Track compliance periods, reporting requirements, and upcoming deadlines for all affordable housing commitments.
+                            Track compliance periods, reporting requirements and upcoming deadlines for all affordable housing commitments.
                         </div>
                         {projects.filter(p => p.fundingStatus === 'awarded').map(proj => (
                             <div key={proj.id} className="bg-surface border border-border-light rounded-2xl p-5 shadow-sm">

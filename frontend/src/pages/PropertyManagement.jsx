@@ -79,7 +79,7 @@ export default function PropertyManagement() {
     if (!prop) {
         return (
             <div className="h-full overflow-y-auto p-6 lg:p-8">
-                <PageHeader title="Property Management" subtitle="Manage stabilized properties, rent rolls, maintenance, and compliance reporting." />
+                <PageHeader title="Property Management" subtitle="Manage stabilized properties, rent rolls, maintenance and compliance reporting." />
                 <div className="bg-surface border border-border-light rounded-2xl p-12 text-center text-text-secondary mt-12 shadow-sm">
                     <Building2 size={48} className="mx-auto mb-4 text-text-tertiary" />
                     <h3 className="text-xl font-bold text-text-primary mb-2">No Properties Found</h3>
@@ -92,7 +92,7 @@ export default function PropertyManagement() {
     return (
         <div className="h-full overflow-y-auto">
             <div className="max-w-5xl mx-auto p-6 lg:p-8">
-                <PageHeader title="Property Management" subtitle="Manage stabilized properties, rent rolls, maintenance, and compliance reporting." />
+                <PageHeader title="Property Management" subtitle="Manage stabilized properties, rent rolls, maintenance and compliance reporting." />
 
                 {/* Property Selector */}
                 <div className="flex gap-3 mb-6 overflow-x-auto">

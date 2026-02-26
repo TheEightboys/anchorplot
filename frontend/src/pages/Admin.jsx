@@ -160,7 +160,7 @@ const Admin = () => {
             <div>
               <h1 className="text-4xl font-bold text-text-primary mb-2">Admin Console</h1>
               <p className="text-text-secondary text-lg">
-                Platform-wide controls, user approvals, and system monitoring
+                Platform-wide controls, user approvals and system monitoring
               </p>
             </div>
             <div className="flex items-center gap-3">

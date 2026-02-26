@@ -24,7 +24,7 @@ const DealRoom = () => {
                 } else if (userData?.role === 'investor') {
                     q = query(collection(db, 'projects'), where('investors', 'array-contains', userData.uid));
                 } else {
-                    // Admin gets all, or fallback
+                    // Admin gets all or fallback
                     q = query(collection(db, 'projects'));
                 }
 
@@ -113,7 +113,7 @@ const DealRoom = () => {
             <div className="max-w-7xl mx-auto">
                 <PageHeader
                     title="JV Deal Room"
-                    subtitle="Encrypted project workspaces with milestone tracking, equity ledgers, and internal messaging."
+                    subtitle="Encrypted project workspaces with milestone tracking, equity ledgers and internal messaging."
                     badge="Encrypted"
                     backTo="/app"
                     backLabel="Dashboard"

@@ -56,7 +56,7 @@ const ZoningIntelligence = () => {
                     </div>
                     <h2 className="text-h2 font-bold mb-3">No Properties Tracked</h2>
                     <p className="text-text-secondary mb-8 leading-relaxed max-w-sm">
-                        Monitor specific parcels for zoning changes, new ordinances, and development incentives. Add your first property to begin tracking.
+                        Monitor specific parcels for zoning changes, new ordinances and development incentives. Add your first property to begin tracking.
                     </p>
                     <button className="btn btn-primary flex items-center gap-2">
                         <Plus size={18} /> Add Property to Watchlist

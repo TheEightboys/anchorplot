@@ -91,7 +91,7 @@ const Signup = () => {
                         <span className="text-[#4ec878]"> real estate professionals</span>
                     </h2>
                     <p className="text-white/60 text-sm leading-relaxed mb-10">
-                        AnchorPlot is a three-sided marketplace. Whether you own land, develop projects, fund deals, or provide legal and management services — we match you with vetted counterparts through controlled disclosure.
+                        AnchorPlot is a three-sided marketplace. Whether you own land, develop projects, fund deals or provide legal and management services — we match you with vetted counterparts through controlled disclosure.
                     </p>
 
                     <div className="space-y-4">
@@ -249,7 +249,7 @@ const Signup = () => {
                                 className="mt-0.5 w-4 h-4 rounded border-border-medium text-primary focus:ring-primary/20" />
                             <span className="text-xs text-text-secondary leading-relaxed">
                                 I agree to the <a href="#" className="text-primary font-semibold hover:underline">Terms of Service</a> and{' '}
-                                <a href="#" className="text-primary font-semibold hover:underline">Privacy Policy</a>, and acknowledge the KYC verification requirements.
+                                <a href="#" className="text-primary font-semibold hover:underline">Privacy Policy</a> and acknowledge the KYC verification requirements.
                             </span>
                         </label>
 

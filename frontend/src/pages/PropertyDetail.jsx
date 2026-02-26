@@ -132,7 +132,7 @@ export default function PropertyDetail() {
                     <div className="mt-3 bg-info/5 border border-info/10 rounded-lg p-3 flex items-start gap-2">
                         <Info size={14} className="text-info mt-0.5 shrink-0" />
                         <p className="text-[11px] text-text-secondary">
-                            Full property details including address and parcel ID are revealed only after pitch acceptance, attorney selection (where required), and platform fee acknowledgment.
+                            Full property details including address and parcel ID are revealed only after pitch acceptance, attorney selection (where required) and platform fee acknowledgment.
                         </p>
                     </div>
                 </div>

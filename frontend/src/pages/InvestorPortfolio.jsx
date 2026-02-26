@@ -43,7 +43,7 @@ export default function InvestorPortfolio() {
     return (
         <div className="h-full overflow-y-auto">
             <div className="max-w-5xl mx-auto p-6 lg:p-8">
-                <PageHeader title="Investor Portfolio" subtitle="Track your investments, distributions, and portfolio performance." />
+                <PageHeader title="Investor Portfolio" subtitle="Track your investments, distributions and portfolio performance." />
 
                 {/* Portfolio Stats */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

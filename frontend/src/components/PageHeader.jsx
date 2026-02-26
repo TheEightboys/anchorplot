@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 
 /**
  * PageHeader — Reusable premium header for all dashboard pages.
- * Shows a back button (history or fixed path), page title, badge, and optional actions.
+ * Shows a back button (history or fixed path), page title, badge and optional actions.
  */
 const PageHeader = ({
     title,

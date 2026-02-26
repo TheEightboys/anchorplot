@@ -9,10 +9,10 @@ import './Home.css';
 gsap.registerPlugin(ScrollTrigger);
 
 const FAQS = [
-    { q: 'How does controlled disclosure work?', a: 'Owners list properties with normalized attributes only — city, neighborhood band, lot size range, zoning district, and build potential. No exact address, parcel ID, or identity is exposed until a gated stage is completed, including accepted pitch, attorney selection, and platform fee acknowledgment.' },
-    { q: 'Who needs attorney involvement?', a: 'If your property is in a jurisdiction requiring attorney involvement (such as NY, NJ, or CT), AnchorPlot blocks progression until a platform-vetted attorney or invited independent counsel with confirmed bar number is selected. The platform never provides legal advice.' },
-    { q: 'What is the AnchorPlot Match Score?', a: 'The Match Score is a proprietary algorithm that considers normalized property attributes, developer specialization, investor criteria, and zoning compatibility to generate an explainable score for each listing-pitch pairing.' },
-    { q: 'How does the equity ledger work?', a: 'Every project has a live equity ledger tracking ownership percentages for owners, developers, investors, and optional realtor carried equity (capped at 1%). Vesting conditions, distribution records, and payment logs are stored with traceable transaction IDs.' },
+    { q: 'How does controlled disclosure work?', a: 'Owners list properties with normalized attributes only — city, neighborhood band, lot size range, zoning district and build potential. No exact address, parcel ID or identity is exposed until a gated stage is completed, including accepted pitch, attorney selection and platform fee acknowledgment.' },
+    { q: 'Who needs attorney involvement?', a: 'If your property is in a jurisdiction requiring attorney involvement (such as NY, NJ or CT), AnchorPlot blocks progression until a platform-vetted attorney or invited independent counsel with confirmed bar number is selected. The platform never provides legal advice.' },
+    { q: 'What is the AnchorPlot Match Score?', a: 'The Match Score is a proprietary algorithm that considers normalized property attributes, developer specialization, investor criteria and zoning compatibility to generate an explainable score for each listing-pitch pairing.' },
+    { q: 'How does the equity ledger work?', a: 'Every project has a live equity ledger tracking ownership percentages for owners, developers, investors and optional realtor carried equity (capped at 1%). Vesting conditions, distribution records and payment logs are stored with traceable transaction IDs.' },
     { q: 'Is there support for affordable housing?', a: 'Yes. Owners can opt into affordable or mixed-income units at listing time, selecting AMI targets and affordability terms. The platform matches these to developers with affordable housing experience and tracks public funding program compliance.' },
 ];
 
@@ -209,7 +209,7 @@ const Home = () => {
 
                         <p className="hero-sub text-base sm:text-lg md:text-xl leading-relaxed mb-10 max-w-xl" style={{ color: 'rgba(255,255,255,0.95)' }}>
                             The controlled-disclosure marketplace connecting landowners with developers and investors.
-                            Navigate zoning shifts, structure joint ventures, and execute projects seamlessly.
+                            Navigate zoning shifts, structure joint ventures and execute projects seamlessly.
                         </p>
 
                         <div className="hero-actions flex flex-col sm:flex-row gap-3 items-start">
@@ -356,7 +356,7 @@ const Home = () => {
                             <p className="text-xs font-bold tracking-widest uppercase text-text-secondary mb-3">Zoning Intelligence</p>
                             <h3 className="text-xl font-bold text-text-primary mb-3">Real-Time Zoning Alerts</h3>
                             <p className="text-text-secondary leading-relaxed flex-1">
-                                Automated GIS layer ingestion and legislative feed parsing. Instant impact reports on density, height, and FAR intersected with your parcel portfolio.
+                                Automated GIS layer ingestion and legislative feed parsing. Instant impact reports on density, height and FAR intersected with your parcel portfolio.
                             </p>
                             <NavLink to="/app/zoning" className="inline-flex items-center gap-1 mt-6 font-bold text-sm" style={{ color: '#2563eb' }}>
                                 View Dashboard <ChevronRight size={14} />
@@ -370,7 +370,7 @@ const Home = () => {
                             <p className="text-xs font-bold tracking-widest uppercase text-text-secondary mb-3">Marketplace</p>
                             <h3 className="text-xl font-bold text-text-primary mb-3">Anonymized Deal Discovery</h3>
                             <p className="text-text-secondary leading-relaxed flex-1">
-                                Owners list without exposing exact addresses. Filter by normalized attributes, AnchorPlot Match scores, and development potential.
+                                Owners list without exposing exact addresses. Filter by normalized attributes, AnchorPlot Match scores and development potential.
                             </p>
                             <NavLink to="/app/marketplace" className="inline-flex items-center gap-1 mt-6 font-bold text-sm" style={{ color: '#15803d' }}>
                                 Explore Deals <ChevronRight size={14} />
@@ -384,7 +384,7 @@ const Home = () => {
                             <p className="text-xs font-bold tracking-widest uppercase text-text-secondary mb-3">JV Deal Room</p>
                             <h3 className="text-xl font-bold text-text-primary mb-3">Encrypted Deal Workspace</h3>
                             <p className="text-text-secondary leading-relaxed flex-1">
-                                Milestone tracking, automated JV agreements, e-signatures, live equity ledgers, and attorney-gated messaging in secure workspaces.
+                                Milestone tracking, automated JV agreements, e-signatures, live equity ledgers and attorney-gated messaging in secure workspaces.
                             </p>
                             <NavLink to="/app/deal-room" className="inline-flex items-center gap-1 mt-6 font-bold text-sm" style={{ color: '#7e22ce' }}>
                                 Enter Deal Room <ChevronRight size={14} />
@@ -411,10 +411,10 @@ const Home = () => {
                     <div className="flex flex-col gap-10">
                         {[
                             { n: '1', icon: UserCheck, title: 'Owner Creates Anonymized Listing', desc: 'Property attributes are normalized — city, zoning district, lot size range, build potential. No exact address or owner identity is exposed.' },
-                            { n: '2', icon: BarChart2, title: 'Developers Submit Structured Pitches', desc: 'Developers browse anonymized listings, assess match scores, and submit structured development proposals with pro-formas.' },
+                            { n: '2', icon: BarChart2, title: 'Developers Submit Structured Pitches', desc: 'Developers browse anonymized listings, assess match scores and submit structured development proposals with pro-formas.' },
                             { n: '3', icon: Scale, title: 'Attorney Selection & Compliance Gate', desc: 'In restricted jurisdictions, AnchorPlot requires vetted attorney selection before deal progression. All consents and disclosures are logged.' },
-                            { n: '4', icon: FileText, title: 'JV Agreement & Milestone Tracking', desc: 'A project workspace is created with automated term sheets, e-signatures, equity ledgers, budget tracking, and progress payments.' },
-                            { n: '5', icon: CheckCircle2, title: 'Completion & Property Management', desc: 'Post-completion, projects transition to a property management phase with rent roll, compliance reporting, and investor portfolio views.' },
+                            { n: '4', icon: FileText, title: 'JV Agreement & Milestone Tracking', desc: 'A project workspace is created with automated term sheets, e-signatures, equity ledgers, budget tracking and progress payments.' },
+                            { n: '5', icon: CheckCircle2, title: 'Completion & Property Management', desc: 'Post-completion, projects transition to a property management phase with rent roll, compliance reporting and investor portfolio views.' },
                         ].map((step, i, arr) => (
                             <div key={step.n} className="timeline-step">
                                 <div className="relative">
@@ -477,7 +477,7 @@ const Home = () => {
                                 {[
                                     { n: '01', title: 'Vetted Professionals Only', body: 'KYC Level 2 for investors. Required attorney selection in restricted jurisdictions. Verified developer credentials.' },
                                     { n: '02', title: 'Controlled Disclosure', body: 'Parcels and identities remain masked until multi-stage gated NDA, protecting both parties from circumvention.' },
-                                    { n: '03', title: 'Affordable Housing Built In', body: 'Opt-in frameworks for mixed-income developments, AMI targeting, density bonuses, and public funding compliance tracking.' },
+                                    { n: '03', title: 'Affordable Housing Built In', body: 'Opt-in frameworks for mixed-income developments, AMI targeting, density bonuses and public funding compliance tracking.' },
                                 ].map(step => (
                                     <div key={step.n} className="process-step">
                                         <div className="step-num shrink-0">{step.n}</div>
@@ -586,7 +586,7 @@ const Home = () => {
                         Ready to Structure<br />Your Next Deal?
                     </h2>
                     <p className="text-lg text-text-secondary mb-10 leading-relaxed">
-                        Join a vetted network of landowners, developers, and investors. Access the full AnchorPlot platform today.
+                        Join a vetted network of landowners, developers and investors. Access the full AnchorPlot platform today.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
                         <NavLink to="/app" className="btn btn-primary text-base px-8 py-4 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all">

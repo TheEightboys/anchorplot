@@ -123,7 +123,7 @@ const SAMPLE_ATTORNEYS = [
         website: 'chenlaw.example.com',
         verified: true,
         fee: '$350/hr',
-        bio: 'Specializes in complex JV structuring, zoning appeals, and affordable housing finance.',
+        bio: 'Specializes in complex JV structuring, zoning appeals and affordable housing finance.',
     },
     {
         id: 'atty-002',
@@ -137,7 +137,7 @@ const SAMPLE_ATTORNEYS = [
         website: 'williamslegal.example.com',
         verified: true,
         fee: '$400/hr',
-        bio: 'Former NYC DCP attorney. Expert in land use approvals, ULURP, and MIH compliance.',
+        bio: 'Former NYC DCP attorney. Expert in land use approvals, ULURP and MIH compliance.',
     },
     {
         id: 'atty-003',
@@ -151,7 +151,7 @@ const SAMPLE_ATTORNEYS = [
         website: 'reyesproplaw.example.com',
         verified: true,
         fee: '$320/hr',
-        bio: 'Extensive experience with LIHTC, HOME programs, and mixed-income overlay structures.',
+        bio: 'Extensive experience with LIHTC, HOME programs and mixed-income overlay structures.',
     },
     {
         id: 'atty-004',
@@ -165,7 +165,7 @@ const SAMPLE_ATTORNEYS = [
         website: 'obrienpartners.example.com',
         verified: true,
         fee: '$375/hr',
-        bio: 'Focuses on JV waterfall structures, title insurance, and developer equity negotiations.',
+        bio: 'Focuses on JV waterfall structures, title insurance and developer equity negotiations.',
     },
 ];
 
