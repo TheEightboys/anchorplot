@@ -56,7 +56,7 @@ export default function RealtorManagement() {
     return (
         <div className="h-full overflow-y-auto">
             <div className="max-w-5xl mx-auto p-6 lg:p-8">
-                <PageHeader title="Referrals & Equity" subtitle="Track your property referrals and carried equity positions (≤1%)." />
+                <PageHeader title="Referrals & Equity" subtitle="Track your property referrals and carried equity positions." />
 
                 {/* Stats */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -76,7 +76,7 @@ export default function RealtorManagement() {
 
                 {/* Info banner */}
                 <div className="bg-warning/5 border border-warning/10 rounded-xl p-4 mb-6 text-xs text-text-secondary">
-                    <strong className="text-warning">Carried Equity:</strong> Realtors can earn up to 1% carried equity per project, subject to vesting conditions tied to project milestones. Equity is tracked in the project's immutable equity ledger.
+                    <strong className="text-warning">Carried Equity:</strong> Realtor carried equity is defined per project and can vary by deal, subject to vesting conditions tied to project milestones. Equity is tracked in the project's immutable equity ledger.
                 </div>
 
                 {/* Referral Cards */}

@@ -10,6 +10,7 @@ import PageHeader from '../components/PageHeader';
 
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { getProjectsForUser } from '../services/dashboardData';
 
 
 
@@ -19,6 +20,11 @@ export default function AffordableHousing() {
     const [projects, setProjects] = useState([]);
     const [programs, setPrograms] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    const toSafeNumber = (value, fallback = 0) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+    };
 
     useEffect(() => {
         const fetchPrograms = async () => {
@@ -35,42 +41,35 @@ export default function AffordableHousing() {
 
     useEffect(() => {
         const fetchAffordableProjects = async () => {
-            if (!userData?.uid) return;
+            if (!userData?.uid) {
+                setProjects([]);
+                setLoading(false);
+                return;
+            }
             try {
-                // Fetch projects that the user has access to AND are marked as affordable
-                const q = query(
-                    collection(db, 'projects'),
-                    where('developerId', '==', userData.uid)
-                    // Unfortunately Firestore compound queries with logical OR on multiple fields are tricky,
-                    // so we'll just query by developerId for now and filter. 
-                    // In a full prod app this might use an array-contains on a 'participants' field.
-                );
-
-                const snapshot = await getDocs(q);
-                const projectData = snapshot.docs
-                    .map(doc => {
-                        const data = doc.data();
-                        return {
-                            id: doc.id,
-                            name: data.name || 'Unnamed Project',
-                            city: data.city || 'Unknown Location',
-                            amiLevel: data.amiLevel || '60% AMI',
-                            units: data.totalUnits || 0,
-                            affordableUnits: data.affordableUnits || 0,
-                            term: data.term || '30 years',
-                            fundingStatus: data.fundingStatus || 'applying',
-                            fundingAmount: data.fundingAmount || 0,
-                            program: data.fundingProgram || 'Undecided',
-                            compliancePeriod: data.compliancePeriod || '15 years',
-                            isAffordable: data.isAffordable || false
-                        };
-                    })
-                    // Filter in memory for affordable ones to bypass index limits
-                    .filter(p => p.isAffordable || p.affordableUnits > 0);
+                const scopedProjects = await getProjectsForUser(userData);
+                const projectData = scopedProjects
+                    .map(data => ({
+                        id: data.id,
+                        name: data.name || 'Unnamed Project',
+                        city: data.city || data.propertyCity || 'Unknown Location',
+                        amiLevel: data.amiLevel || data.targetAMI || '60% AMI',
+                        units: toSafeNumber(data.totalUnits ?? data.units),
+                        affordableUnits: toSafeNumber(data.affordableUnits),
+                        term: data.term || (data.affordabilityTerm ? `${data.affordabilityTerm} years` : '30 years'),
+                        fundingStatus: data.fundingStatus || (toSafeNumber(data.fundingAmount) > 0 ? 'awarded' : 'applying'),
+                        fundingAmount: toSafeNumber(data.fundingAmount),
+                        program: data.fundingProgram || 'Undecided',
+                        compliancePeriod: data.compliancePeriod || (data.affordabilityTerm ? `${data.affordabilityTerm} years` : '15 years'),
+                        isAffordable: Boolean(data.isAffordable || data.affordableHousingOptIn || toSafeNumber(data.affordableUnits) > 0),
+                        complianceRequirements: Array.isArray(data.complianceRequirements) ? data.complianceRequirements : [],
+                    }))
+                    .filter(project => project.isAffordable || project.affordableUnits > 0);
 
                 setProjects(projectData);
             } catch (error) {
                 console.error("Error fetching affordable projects:", error);
+                setProjects([]);
             } finally {
                 setLoading(false);
             }
@@ -78,6 +77,17 @@ export default function AffordableHousing() {
 
         fetchAffordableProjects();
     }, [userData]);
+
+    const activeProjectsCount = projects.length;
+    const totalAffordableUnits = projects.reduce((sum, project) => sum + toSafeNumber(project.affordableUnits), 0);
+    const fundingSecuredAmount = projects.reduce((sum, project) => sum + toSafeNumber(project.fundingAmount), 0);
+    const complianceActiveCount = projects.filter(project => project.fundingStatus === 'awarded').length;
+
+    const defaultComplianceItems = [
+        { label: 'Annual Income Verification', due: 'TBD', status: 'upcoming' },
+        { label: 'Unit Inspection Report', due: 'TBD', status: 'upcoming' },
+        { label: 'Program Compliance Report', due: 'TBD', status: 'upcoming' },
+    ];
 
     return (
         <div className="h-full overflow-y-auto">
@@ -87,13 +97,19 @@ export default function AffordableHousing() {
                     subtitle="Track affordable housing projects, AMI commitments and public funding programs."
                 />
 
+                {loading && (
+                    <div className="mb-6 p-4 rounded-xl border border-border-light bg-surface text-sm text-text-secondary">
+                        Loading affordable housing data...
+                    </div>
+                )}
+
                 {/* Stats Row */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                     {[
-                        ['Active Projects', '2', Heart, 'success'],
-                        ['Affordable Units', '11', Home, 'primary'],
-                        ['Funding Secured', '$1.2M', DollarSign, 'info'],
-                        ['Compliance Active', '1', Check, 'warning'],
+                        ['Active Projects', String(activeProjectsCount), Heart, 'success'],
+                        ['Affordable Units', String(totalAffordableUnits), Home, 'primary'],
+                        ['Funding Secured', `$${fundingSecuredAmount.toLocaleString()}`, DollarSign, 'info'],
+                        ['Compliance Active', String(complianceActiveCount), Check, 'warning'],
                     ].map(([label, value, Icon, color]) => (
                         <div key={label} className={`bg-${color}/5 border border-${color}/10 rounded-xl p-4`}>
                             <Icon size={18} className={`text-${color} mb-2`} />
@@ -117,7 +133,11 @@ export default function AffordableHousing() {
                 {/* Projects Tab */}
                 {tab === 'projects' && (
                     <div className="space-y-4">
-                        {projects.map(proj => (
+                        {projects.length === 0 ? (
+                            <div className="bg-surface border border-border-light rounded-2xl p-8 text-center text-text-secondary">
+                                No affordable housing projects found yet.
+                            </div>
+                        ) : projects.map(proj => (
                             <div key={proj.id} className="bg-surface border border-border-light rounded-2xl p-5 shadow-sm hover:shadow-md transition-all">
                                 <div className="flex items-start justify-between mb-3">
                                     <div>
@@ -150,7 +170,11 @@ export default function AffordableHousing() {
                 {/* Programs Tab */}
                 {tab === 'programs' && (
                     <div className="space-y-4">
-                        {programs.map(prog => (
+                        {programs.length === 0 ? (
+                            <div className="bg-surface border border-border-light rounded-2xl p-8 text-center text-text-secondary">
+                                No funding programs available right now.
+                            </div>
+                        ) : programs.map(prog => (
                             <div key={prog.id} className="bg-surface border border-border-light rounded-2xl p-5 shadow-sm">
                                 <div className="flex items-start justify-between mb-2">
                                     <div>
@@ -177,7 +201,11 @@ export default function AffordableHousing() {
                         <div className="bg-info/5 border border-info/10 rounded-xl p-4 text-xs text-text-secondary mb-2">
                             Track compliance periods, reporting requirements and upcoming deadlines for all affordable housing commitments.
                         </div>
-                        {projects.filter(p => p.fundingStatus === 'awarded').map(proj => (
+                        {projects.filter(p => p.fundingStatus === 'awarded').length === 0 ? (
+                            <div className="bg-surface border border-border-light rounded-2xl p-8 text-center text-text-secondary">
+                                No awarded projects with active compliance requirements yet.
+                            </div>
+                        ) : projects.filter(p => p.fundingStatus === 'awarded').map(proj => (
                             <div key={proj.id} className="bg-surface border border-border-light rounded-2xl p-5 shadow-sm">
                                 <h3 className="text-sm font-bold text-text-primary mb-3">{proj.name} — Compliance Tracker</h3>
                                 <div className="grid grid-cols-3 gap-3 mb-4">
@@ -193,16 +221,14 @@ export default function AffordableHousing() {
                                     ))}
                                 </div>
                                 <div className="space-y-2">
-                                    {[
-                                        { label: 'Annual Income Verification', due: '2026-12-01', status: 'upcoming' },
-                                        { label: 'Unit Inspection Report', due: '2026-09-15', status: 'upcoming' },
-                                        { label: 'HUD Annual Report', due: '2027-01-31', status: 'upcoming' },
-                                    ].map((r, i) => (
+                                    {(proj.complianceRequirements.length > 0 ? proj.complianceRequirements : defaultComplianceItems).map((r, i) => (
                                         <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-border-light">
                                             <span className="text-xs font-medium text-text-primary">{r.label}</span>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-[10px] text-text-tertiary">Due: {r.due}</span>
-                                                <span className="px-2 py-0.5 rounded-full bg-info/10 text-info text-[10px] font-bold">{r.status}</span>
+                                                <span className="text-[10px] text-text-tertiary">Due: {r.due || 'TBD'}</span>
+                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.status === 'complete' ? 'bg-success/10 text-success' : 'bg-info/10 text-info'}`}>
+                                                    {r.status || 'upcoming'}
+                                                </span>
                                             </div>
                                         </div>
                                     ))}

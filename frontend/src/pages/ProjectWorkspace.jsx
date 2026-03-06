@@ -74,17 +74,26 @@ export default function ProjectWorkspace() {
         </div>
     );
 
-    const equityData = project?.equityLedger || [
-        { party: 'Owner', pct: 40, color: '#22c55e', vested: true },
-        { party: 'Developer', pct: 45, color: '#3b82f6', vested: true },
-        { party: 'Investor Pool', pct: 14, color: '#8b5cf6', vested: false },
-        { party: 'Realtor', pct: 1, color: '#f59e0b', vested: false },
-    ];
+    const normalizeMilestoneStatus = (status) => {
+        const normalized = String(status || '').toLowerCase();
+        if (['completed', 'complete', 'done'].includes(normalized)) return 'completed';
+        if (['in-progress', 'in_progress', 'active', 'ongoing'].includes(normalized)) return 'in-progress';
+        return 'pending';
+    };
 
-    const milestones = project?.milestones || MILESTONE_PHASES.map((p, i) => ({
-        ...p, status: i === 0 ? 'in-progress' : 'pending',
-        budget: 0, spent: 0, due: '', notes: ''
-    }));
+    const equityData = Array.isArray(project?.equityLedger) ? project.equityLedger : [];
+    const milestones = Array.isArray(project?.milestones)
+        ? project.milestones.map((milestone, index) => ({
+            ...milestone,
+            label: milestone.label || milestone.title || `Milestone ${index + 1}`,
+            status: normalizeMilestoneStatus(milestone.status),
+        }))
+        : [];
+
+    const projectDocuments = Array.isArray(project?.documents) ? project.documents : [];
+    const complianceCheckpoints = Array.isArray(project?.complianceCheckpoints)
+        ? project.complianceCheckpoints
+        : [];
 
     return (
         <div className="h-full overflow-y-auto">
@@ -152,23 +161,26 @@ export default function ProjectWorkspace() {
                             {/* Quick milestone view */}
                             <div>
                                 <h3 className="text-sm font-bold text-text-primary mb-3">Phase Progress</h3>
-                                <div className="flex items-center gap-2">
-                                    {MILESTONE_PHASES.map((phase, i) => {
-                                        const ms = milestones[i] || {};
-                                        return (
-                                            <React.Fragment key={phase.key}>
-                                                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold ${ms.status === 'completed' ? 'bg-success/10 text-success' :
-                                                        ms.status === 'in-progress' ? 'bg-primary/10 text-primary ring-1 ring-primary/20' :
+                                {milestones.length === 0 ? (
+                                    <div className="bg-surface-element rounded-lg px-4 py-3 text-xs text-text-secondary">
+                                        No milestone progress recorded yet.
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                                        {milestones.map((milestone, index) => (
+                                            <React.Fragment key={`${milestone.label}-${index}`}>
+                                                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap ${milestone.status === 'completed' ? 'bg-success/10 text-success' :
+                                                        milestone.status === 'in-progress' ? 'bg-primary/10 text-primary ring-1 ring-primary/20' :
                                                             'bg-surface-element text-text-tertiary'
                                                     }`}>
-                                                    {ms.status === 'completed' ? <Check size={12} /> : ms.status === 'in-progress' ? <Clock size={12} /> : null}
-                                                    {phase.label}
+                                                    {milestone.status === 'completed' ? <Check size={12} /> : milestone.status === 'in-progress' ? <Clock size={12} /> : null}
+                                                    {milestone.label}
                                                 </div>
-                                                {i < MILESTONE_PHASES.length - 1 && <ChevronRight size={14} className="text-text-tertiary" />}
+                                                {index < milestones.length - 1 && <ChevronRight size={14} className="text-text-tertiary" />}
                                             </React.Fragment>
-                                        );
-                                    })}
-                                </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -179,7 +191,11 @@ export default function ProjectWorkspace() {
                             <div className="flex items-center justify-between mb-2">
                                 <h3 className="text-sm font-bold text-text-primary">Project Milestones</h3>
                             </div>
-                            {milestones.map((ms, i) => (
+                            {milestones.length === 0 ? (
+                                <div className="text-sm text-text-secondary bg-surface-element rounded-lg p-4">
+                                    No milestones have been added to this project.
+                                </div>
+                            ) : milestones.map((ms, i) => (
                                 <div key={i} className={`border rounded-xl p-4 transition-all ${ms.status === 'completed' ? 'border-success/20 bg-success/3' :
                                         ms.status === 'in-progress' ? 'border-primary/20 bg-primary/3' :
                                             'border-border-light'
@@ -213,31 +229,39 @@ export default function ProjectWorkspace() {
                     {tab === 'equity' && (
                         <div className="space-y-6">
                             <h3 className="text-sm font-bold text-text-primary">Equity Distribution</h3>
-                            <div className="flex items-center gap-2 h-8 rounded-full overflow-hidden">
-                                {equityData.map(e => (
-                                    <div key={e.party} style={{ width: `${e.pct}%`, backgroundColor: e.color }}
-                                        className="h-full flex items-center justify-center text-white text-[10px] font-bold min-w-[30px]">
-                                        {e.pct}%
+                            {equityData.length === 0 ? (
+                                <div className="text-sm text-text-secondary bg-surface-element rounded-lg p-4">
+                                    Equity ledger entries are not available for this project yet.
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="flex items-center gap-2 h-8 rounded-full overflow-hidden">
+                                        {equityData.map((e, index) => (
+                                            <div key={`${e.party || 'Party'}-${index}`} style={{ width: `${e.pct || 0}%`, backgroundColor: e.color || '#94a3b8' }}
+                                                className="h-full flex items-center justify-center text-white text-[10px] font-bold min-w-[30px]">
+                                                {e.pct || 0}%
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                                {equityData.map(e => (
-                                    <div key={e.party} className="bg-surface-element rounded-xl p-4">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: e.color }} />
-                                            <p className="text-xs font-bold text-text-secondary">{e.party}</p>
-                                        </div>
-                                        <p className="text-2xl font-bold text-text-primary">{e.pct}%</p>
-                                        <p className={`text-[10px] font-bold mt-1 ${e.vested ? 'text-success' : 'text-warning'}`}>
-                                            {e.vested ? '✓ Fully Vested' : '○ Vesting'}
-                                        </p>
+                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                                        {equityData.map((e, index) => (
+                                            <div key={`${e.party || 'Party'}-${index}`} className="bg-surface-element rounded-xl p-4">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: e.color || '#94a3b8' }} />
+                                                    <p className="text-xs font-bold text-text-secondary">{e.party || `Party ${index + 1}`}</p>
+                                                </div>
+                                                <p className="text-2xl font-bold text-text-primary">{e.pct || 0}%</p>
+                                                <p className={`text-[10px] font-bold mt-1 ${e.vested ? 'text-success' : 'text-warning'}`}>
+                                                    {e.vested ? '✓ Fully Vested' : '○ Vesting'}
+                                                </p>
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
-                            <div className="bg-info/5 border border-info/10 rounded-xl p-4 text-xs text-text-secondary">
-                                <strong>Realtor equity</strong> is capped at 1% carried equity with vesting conditions tied to project completion. Distribution records and payment logs are stored with traceable transaction IDs.
-                            </div>
+                                    <div className="bg-info/5 border border-info/10 rounded-xl p-4 text-xs text-text-secondary">
+                                        <strong>Realtor equity</strong> is carried equity with vesting conditions tied to project completion. Distribution records and payment logs are stored with traceable transaction IDs.
+                                    </div>
+                                </>
+                            )}
                         </div>
                     )}
 
@@ -248,17 +272,23 @@ export default function ProjectWorkspace() {
                                 <h3 className="text-sm font-bold text-text-primary">Project Documents</h3>
                                 <button className="btn btn-primary text-xs px-4 py-2 flex items-center gap-1.5"><Upload size={13} /> Upload</button>
                             </div>
-                            {['JV Term Sheet', 'JV Agreement', 'Title Report', 'Zoning Verification'].map((doc, i) => (
-                                <div key={i} className="flex items-center justify-between p-4 border border-border-light rounded-xl hover:bg-surface-hover transition-all">
+                            {projectDocuments.length === 0 ? (
+                                <div className="text-sm text-text-secondary bg-surface-element rounded-lg p-4">
+                                    No project documents uploaded yet.
+                                </div>
+                            ) : projectDocuments.map((documentItem, index) => (
+                                <div key={`${documentItem.name || 'Document'}-${index}`} className="flex items-center justify-between p-4 border border-border-light rounded-xl hover:bg-surface-hover transition-all">
                                     <div className="flex items-center gap-3">
                                         <FileText size={18} className="text-primary" />
                                         <div>
-                                            <p className="text-sm font-bold text-text-primary">{doc}</p>
-                                            <p className="text-[10px] text-text-tertiary">v1.0 · Uploaded Feb 2026</p>
+                                            <p className="text-sm font-bold text-text-primary">{documentItem.name || `Document ${index + 1}`}</p>
+                                            <p className="text-[10px] text-text-tertiary">{documentItem.version || 'v1.0'} · {documentItem.uploadedAt || 'Uploaded recently'}</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <span className="px-2 py-0.5 rounded-full bg-success/10 text-success text-[10px] font-bold">Signed</span>
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${documentItem.status === 'signed' ? 'bg-success/10 text-success' : 'bg-info/10 text-info'}`}>
+                                            {documentItem.status || 'uploaded'}
+                                        </span>
                                         <button className="p-1.5 rounded-lg hover:bg-surface-element"><Download size={14} className="text-text-secondary" /></button>
                                     </div>
                                 </div>
@@ -302,14 +332,11 @@ export default function ProjectWorkspace() {
                     {tab === 'compliance' && (
                         <div className="space-y-4">
                             <h3 className="text-sm font-bold text-text-primary">Compliance Checkpoints</h3>
-                            {[
-                                { label: 'Owner Consent', status: 'complete', date: '2026-02-10' },
-                                { label: 'Attorney Selection', status: 'complete', date: '2026-02-12' },
-                                { label: 'Disclosure Acknowledgment', status: 'complete', date: '2026-02-12' },
-                                { label: 'Platform Fee Accepted', status: 'complete', date: '2026-02-14' },
-                                { label: 'KYC Verification (Investor)', status: 'pending', date: '' },
-                                { label: 'E-Signature on JV Agreement', status: 'pending', date: '' },
-                            ].map((cp, i) => (
+                            {complianceCheckpoints.length === 0 ? (
+                                <div className="text-sm text-text-secondary bg-surface-element rounded-lg p-4">
+                                    No compliance checkpoints defined for this project yet.
+                                </div>
+                            ) : complianceCheckpoints.map((cp, i) => (
                                 <div key={i} className={`flex items-center gap-4 p-4 rounded-xl border ${cp.status === 'complete' ? 'border-success/15 bg-success/3' : 'border-border-light'
                                     }`}>
                                     <div className={`w-7 h-7 rounded-full flex items-center justify-center ${cp.status === 'complete' ? 'bg-success text-white' : 'bg-surface-element text-text-tertiary'

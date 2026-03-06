@@ -1,27 +1,167 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, Heart, Settings, Bell, ChevronDown, BarChart2, Check, Zap, Map, Loader2, Plus, Filter } from 'lucide-react';
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useNavigate } from 'react-router-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import './Marketplace.css';
 import PageHeader from '../components/PageHeader';
+import { getMatchScore } from '../services/matchScore';
 
 const Marketplace = () => {
     const [properties, setProperties] = useState([]);
     const [loading, setLoading] = useState(true);
+    const navigate = useNavigate();
     const container = useRef();
+    const [lotSizeMinFilter, setLotSizeMinFilter] = useState('2500');
+    const [lotSizeMaxFilter, setLotSizeMaxFilter] = useState('15000');
+    const [overlayFilters, setOverlayFilters] = useState({
+        tod: false,
+        historic: false,
+        opportunity: false,
+        commercial: false,
+    });
+    const [minCapRateFilter, setMinCapRateFilter] = useState(5.5);
+    const [targetIrrFilter, setTargetIrrFilter] = useState(18);
+
+    const resetAllFilters = () => {
+        setLotSizeMinFilter('2500');
+        setLotSizeMaxFilter('15000');
+        setOverlayFilters({
+            tod: false,
+            historic: false,
+            opportunity: false,
+            commercial: false,
+        });
+        setMinCapRateFilter(5.5);
+        setTargetIrrFilter(18);
+    };
+
+    const toggleOverlayFilter = (filterKey) => {
+        setOverlayFilters(previous => ({
+            ...previous,
+            [filterKey]: !previous[filterKey],
+        }));
+    };
+
+    const getPropertyLotSize = (property) => {
+        const directLotSize = Number(property.lotSize);
+        if (Number.isFinite(directLotSize) && directLotSize > 0) return directLotSize;
+
+        const minLotSize = Number(property.lotSizeMin);
+        const maxLotSize = Number(property.lotSizeMax);
+        if (Number.isFinite(minLotSize) && Number.isFinite(maxLotSize) && minLotSize > 0 && maxLotSize > 0) {
+            return Math.round((minLotSize + maxLotSize) / 2);
+        }
+
+        const lotSizeRange = String(property.lotSizeRange || '');
+        const numericValues = lotSizeRange.match(/\d[\d,]*/g)?.map(value => Number(value.replace(/,/g, ''))) || [];
+        if (numericValues.length === 1) return numericValues[0];
+        if (numericValues.length >= 2) return Math.round((numericValues[0] + numericValues[1]) / 2);
+
+        return 0;
+    };
+
+    const parsePercentValue = (value) => {
+        if (value === null || value === undefined) return NaN;
+        if (typeof value === 'number') return Number.isFinite(value) ? value : NaN;
+        const normalized = String(value).replace('%', '').trim();
+        const parsed = Number(normalized);
+        return Number.isFinite(parsed) ? parsed : NaN;
+    };
+
+    const getPropertyCapRate = (property) => {
+        const candidates = [property.capRate, property.minCapRate, property.cap_rate];
+        for (const candidate of candidates) {
+            const parsed = parsePercentValue(candidate);
+            if (Number.isFinite(parsed)) return parsed;
+        }
+        return NaN;
+    };
+
+    const getPropertyTargetIrr = (property) => {
+        const candidates = [property.targetIRR, property.targetIrr, property.irr, property.expectedReturn];
+        for (const candidate of candidates) {
+            const parsed = parsePercentValue(candidate);
+            if (Number.isFinite(parsed)) return parsed;
+        }
+        return NaN;
+    };
+
+    const filteredProperties = useMemo(() => {
+        const minLotInput = Number(lotSizeMinFilter);
+        const maxLotInput = Number(lotSizeMaxFilter);
+        const minLotFilter = Number.isFinite(minLotInput) ? minLotInput : 0;
+        const maxLotFilter = Number.isFinite(maxLotInput) ? maxLotInput : Number.MAX_SAFE_INTEGER;
+        const normalizedMinLot = Math.min(minLotFilter, maxLotFilter);
+        const normalizedMaxLot = Math.max(minLotFilter, maxLotFilter);
+        const enabledOverlayKeys = Object.entries(overlayFilters)
+            .filter(([, isEnabled]) => isEnabled)
+            .map(([key]) => key);
+
+        return properties.filter(property => {
+            const propertyLotSize = getPropertyLotSize(property);
+            if (propertyLotSize > 0 && (propertyLotSize < normalizedMinLot || propertyLotSize > normalizedMaxLot)) {
+                return false;
+            }
+
+            const propertyCapRate = getPropertyCapRate(property);
+            if (Number.isFinite(propertyCapRate) && propertyCapRate < minCapRateFilter) {
+                return false;
+            }
+
+            const propertyIrr = getPropertyTargetIrr(property);
+            if (Number.isFinite(propertyIrr) && propertyIrr < targetIrrFilter) {
+                return false;
+            }
+
+            const overlayText = [
+                ...(Array.isArray(property.overlayFlags) ? property.overlayFlags : []),
+                ...(Array.isArray(property.tags) ? property.tags : []),
+                property.zoningDistrict,
+                property.buildPotential,
+            ].join(' ').toLowerCase();
+
+            if (enabledOverlayKeys.length === 0) {
+                return true;
+            }
+
+            const overlayMatches = {
+                tod: overlayText.includes('tod') || overlayText.includes('transit'),
+                historic: overlayText.includes('historic'),
+                opportunity: overlayText.includes('opportunity'),
+                commercial: overlayText.includes('commercial') || overlayText.includes('c1') || overlayText.includes('c2'),
+            };
+
+            return enabledOverlayKeys.some(key => overlayMatches[key]);
+        });
+    }, [properties, lotSizeMinFilter, lotSizeMaxFilter, overlayFilters, minCapRateFilter, targetIrrFilter]);
 
     useEffect(() => {
         const fetchProperties = async () => {
             try {
-                const q = query(collection(db, 'properties'), orderBy('matchScore', 'desc'));
-                const querySnapshot = await getDocs(q);
-                const propsData = querySnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
+                const querySnapshot = await getDocs(collection(db, 'properties'));
+                const propsData = querySnapshot.docs
+                    .map(doc => {
+                        const propertyData = { id: doc.id, ...doc.data() };
+                        const lotSize = getPropertyLotSize(propertyData);
+                        const normalizedTags = Array.isArray(propertyData.tags) && propertyData.tags.length > 0
+                            ? propertyData.tags
+                            : (Array.isArray(propertyData.overlayFlags) ? propertyData.overlayFlags.slice(0, 2) : []);
+
+                        return {
+                            ...propertyData,
+                            title: propertyData.title || `${propertyData.city || 'Unknown City'} Opportunity`,
+                            zoning: propertyData.zoning || propertyData.zoningDistrict || 'TBD',
+                            lotSize,
+                            lotSizeLabel: lotSize > 0 ? lotSize.toLocaleString() : (propertyData.lotSizeRange || 'TBD'),
+                            tags: normalizedTags,
+                            imageGradient: propertyData.imageGradient || 'from-emerald-200 via-emerald-100 to-emerald-50',
+                            matchScore: getMatchScore(propertyData),
+                        };
+                    })
+                    .sort((firstProperty, secondProperty) => secondProperty.matchScore - firstProperty.matchScore);
                 setProperties(propsData);
             } catch (error) {
                 console.error('Error fetching properties:', error);
@@ -54,7 +194,7 @@ const Marketplace = () => {
             <div className="w-[280px] shrink-0 bg-surface border-r border-light flex flex-col h-full overflow-y-auto z-10">
                 <div className="p-4 border-b border-light flex justify-between items-center sticky top-0 bg-surface z-10">
                     <h2 className="font-bold">Filters</h2>
-                    <button className="text-sm text-primary hover:underline">Reset All</button>
+                    <button className="text-sm text-primary hover:underline" onClick={resetAllFilters}>Reset All</button>
                 </div>
 
                 <div className="p-5 flex flex-col gap-6">
@@ -64,9 +204,9 @@ const Marketplace = () => {
                         <p className="text-xs font-bold text-text-secondary uppercase tracking-widest mb-4">PROPERTY SPECS</p>
                         <label className="text-sm font-medium mb-2 block">Lot Size (sq ft)</label>
                         <div className="flex items-center gap-2">
-                            <input type="text" placeholder="2500" defaultValue="2500" className="w-full border border-light rounded p-2 text-sm focus:outline-primary bg-surface-hover" />
+                            <input type="number" placeholder="2500" value={lotSizeMinFilter} onChange={(event) => setLotSizeMinFilter(event.target.value)} className="w-full border border-light rounded p-2 text-sm focus:outline-primary bg-surface-hover" />
                             <span className="text-text-secondary">-</span>
-                            <input type="text" placeholder="15000" defaultValue="15000" className="w-full border border-light rounded p-2 text-sm focus:outline-primary bg-surface-hover" />
+                            <input type="number" placeholder="15000" value={lotSizeMaxFilter} onChange={(event) => setLotSizeMaxFilter(event.target.value)} className="w-full border border-light rounded p-2 text-sm focus:outline-primary bg-surface-hover" />
                         </div>
                     </div>
 
@@ -77,30 +217,30 @@ const Marketplace = () => {
                             <ChevronDown size={16} className="text-text-secondary" />
                         </div>
                         <div className="flex flex-col gap-3">
-                            <label className="flex items-center gap-2 text-sm cursor-pointer group">
-                                <div className="w-4 h-4 rounded border border-primary bg-primary text-white flex items-center justify-center">
+                            <button type="button" onClick={() => toggleOverlayFilter('tod')} className="flex items-center gap-2 text-sm cursor-pointer group text-left">
+                                <div className={`w-4 h-4 rounded border flex items-center justify-center ${overlayFilters.tod ? 'border-primary bg-primary text-white' : 'border-border-medium bg-surface text-transparent group-hover:border-primary'}`}>
                                     <Check size={12} strokeWidth={3} />
                                 </div>
-                                <span className="group-hover:text-primary transition-colors">Transit Oriented (TOD)</span>
-                            </label>
-                            <label className="flex items-center gap-2 text-sm cursor-pointer group">
-                                <div className="w-4 h-4 rounded border border-border-medium bg-surface text-transparent flex items-center justify-center group-hover:border-primary">
+                                <span className={overlayFilters.tod ? 'group-hover:text-primary transition-colors' : 'text-text-secondary group-hover:text-text-primary transition-colors'}>Transit Oriented (TOD)</span>
+                            </button>
+                            <button type="button" onClick={() => toggleOverlayFilter('historic')} className="flex items-center gap-2 text-sm cursor-pointer group text-left">
+                                <div className={`w-4 h-4 rounded border flex items-center justify-center ${overlayFilters.historic ? 'border-primary bg-primary text-white' : 'border-border-medium bg-surface text-transparent group-hover:border-primary'}`}>
                                     <Check size={12} strokeWidth={3} />
                                 </div>
-                                <span className="text-text-secondary group-hover:text-text-primary transition-colors">Historic District</span>
-                            </label>
-                            <label className="flex items-center gap-2 text-sm cursor-pointer group">
-                                <div className="w-4 h-4 rounded border border-border-medium bg-surface text-transparent flex items-center justify-center group-hover:border-primary">
+                                <span className={overlayFilters.historic ? 'group-hover:text-primary transition-colors' : 'text-text-secondary group-hover:text-text-primary transition-colors'}>Historic District</span>
+                            </button>
+                            <button type="button" onClick={() => toggleOverlayFilter('opportunity')} className="flex items-center gap-2 text-sm cursor-pointer group text-left">
+                                <div className={`w-4 h-4 rounded border flex items-center justify-center ${overlayFilters.opportunity ? 'border-primary bg-primary text-white' : 'border-border-medium bg-surface text-transparent group-hover:border-primary'}`}>
                                     <Check size={12} strokeWidth={3} />
                                 </div>
-                                <span className="text-text-secondary group-hover:text-text-primary transition-colors">Opportunity Zone</span>
-                            </label>
-                            <label className="flex items-center gap-2 text-sm cursor-pointer group">
-                                <div className="w-4 h-4 rounded border border-border-medium bg-surface text-transparent flex items-center justify-center group-hover:border-primary">
+                                <span className={overlayFilters.opportunity ? 'group-hover:text-primary transition-colors' : 'text-text-secondary group-hover:text-text-primary transition-colors'}>Opportunity Zone</span>
+                            </button>
+                            <button type="button" onClick={() => toggleOverlayFilter('commercial')} className="flex items-center gap-2 text-sm cursor-pointer group text-left">
+                                <div className={`w-4 h-4 rounded border flex items-center justify-center ${overlayFilters.commercial ? 'border-primary bg-primary text-white' : 'border-border-medium bg-surface text-transparent group-hover:border-primary'}`}>
                                     <Check size={12} strokeWidth={3} />
                                 </div>
-                                <span className="text-text-secondary group-hover:text-text-primary transition-colors">Commercial Overlay (C1/C2)</span>
-                            </label>
+                                <span className={overlayFilters.commercial ? 'group-hover:text-primary transition-colors' : 'text-text-secondary group-hover:text-text-primary transition-colors'}>Commercial Overlay (C1/C2)</span>
+                            </button>
                         </div>
                     </div>
 
@@ -114,23 +254,33 @@ const Marketplace = () => {
                         <div className="mb-6">
                             <div className="flex justify-between text-sm mb-2 text-text-secondary">
                                 <span>Min Cap Rate</span>
-                                <span className="font-bold text-text-primary">5.5%</span>
+                                <span className="font-bold text-text-primary">{minCapRateFilter.toFixed(1)}%</span>
                             </div>
-                            <div className="h-1 bg-border-light rounded-full relative mt-3">
-                                <div className="absolute left-0 w-[40%] h-full bg-primary rounded-full"></div>
-                                <div className="absolute left-[40%] top-1/2 -translate-y-1/2 w-4 h-4 bg-primary border-2 border-white rounded-full shadow cursor-grab"></div>
-                            </div>
+                            <input
+                                type="range"
+                                min="2"
+                                max="12"
+                                step="0.1"
+                                value={minCapRateFilter}
+                                onChange={(event) => setMinCapRateFilter(Number(event.target.value))}
+                                className="w-full mt-3 accent-primary"
+                            />
                         </div>
 
                         <div>
                             <div className="flex justify-between text-sm mb-2 text-text-secondary">
                                 <span>Target IRR</span>
-                                <span className="font-bold text-text-primary">18%</span>
+                                <span className="font-bold text-text-primary">{targetIrrFilter.toFixed(1)}%</span>
                             </div>
-                            <div className="h-1 bg-border-light rounded-full relative mt-3">
-                                <div className="absolute left-0 w-[60%] h-full bg-primary rounded-full"></div>
-                                <div className="absolute left-[60%] top-1/2 -translate-y-1/2 w-4 h-4 bg-primary border-2 border-white rounded-full shadow cursor-grab"></div>
-                            </div>
+                            <input
+                                type="range"
+                                min="8"
+                                max="35"
+                                step="0.5"
+                                value={targetIrrFilter}
+                                onChange={(event) => setTargetIrrFilter(Number(event.target.value))}
+                                className="w-full mt-3 accent-primary"
+                            />
                         </div>
                     </div>
 
@@ -156,7 +306,11 @@ const Marketplace = () => {
                 <div className="p-6 pb-2 flex justify-between items-end sticky top-0 bg-background z-10 backdrop-blur-sm shadow-sm">
                     <div>
                         <h1 className="text-h2 font-bold mb-1">Marketplace Opportunities</h1>
-                        <p className="text-text-secondary">Showing 42 anonymized sites matching your criteria</p>
+                        <p className="text-text-secondary">
+                            {loading
+                                ? 'Loading anonymized listings...'
+                                : `Showing ${filteredProperties.length} anonymized site${filteredProperties.length === 1 ? '' : 's'} matching your criteria`}
+                        </p>
                     </div>
 
                     <div className="flex items-center gap-3">
@@ -179,14 +333,14 @@ const Marketplace = () => {
                         <div className="flex items-center justify-center p-12 text-text-secondary">
                             <Loader2 className="animate-spin mr-2" /> Loading Market Data...
                         </div>
-                    ) : properties.length === 0 ? (
+                    ) : filteredProperties.length === 0 ? (
                         <div className="flex items-center justify-center p-12 text-text-secondary">
-                            No matching properties found.
+                            No properties match your current filters.
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-12">
 
-                            {properties.map((prop) => (
+                            {filteredProperties.map((prop) => (
                                 <div key={prop.id} className="card opportunity-card bg-white flex flex-col border border-border-light shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 opacity-0">
 
                                     {/* Image/Map Placeholder area */}
@@ -248,7 +402,7 @@ const Marketplace = () => {
                                             <div className="w-px bg-light"></div>
                                             <div className="flex-1">
                                                 <p className="text-[10px] uppercase font-bold text-light tracking-widest mb-1">LOT SIZE</p>
-                                                <p className="font-bold text-sm">{prop.lotSize} sq ft</p>
+                                                <p className="font-bold text-sm">{prop.lotSizeLabel}{prop.lotSize > 0 ? ' sq ft' : ''}</p>
                                             </div>
                                         </div>
 
@@ -261,8 +415,18 @@ const Marketplace = () => {
                                         </div>
 
                                         <div className="flex gap-3 justify-between items-center mt-auto">
-                                            <button className="text-text-secondary font-bold text-sm hover:text-primary transition-colors">View Details</button>
-                                            <button className="btn btn-primary bg-primary text-white shadow-sm font-bold w-[120px]">Submit Pitch</button>
+                                            <button
+                                                className="text-text-secondary font-bold text-sm hover:text-primary transition-colors"
+                                                onClick={() => navigate(`/app/marketplace/${prop.id}`)}
+                                            >
+                                                View Details
+                                            </button>
+                                            <button
+                                                className="btn btn-primary bg-primary text-white shadow-sm font-bold w-[120px]"
+                                                onClick={() => navigate(`/app/marketplace/${prop.id}`)}
+                                            >
+                                                Submit Pitch
+                                            </button>
                                         </div>
                                     </div>
                                 </div>

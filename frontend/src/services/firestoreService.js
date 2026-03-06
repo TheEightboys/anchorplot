@@ -7,6 +7,7 @@ import {
     query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, increment
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { getMatchScore } from './matchScore';
 
 // ================================
 //  USERS
@@ -36,8 +37,11 @@ export async function listUsers(filters = {}) {
 export const propertiesRef = collection(db, 'properties');
 
 export async function createProperty(data) {
+    const resolvedMatchScore = getMatchScore(data);
+
     return addDoc(propertiesRef, {
         ...data,
+        matchScore: resolvedMatchScore,
         status: data.status || 'pending_review',
         views: 0,
         pitches: [],

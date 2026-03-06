@@ -1,40 +1,138 @@
 import React, { useState, useEffect } from 'react';
 import {
     CheckCircle2, ShieldCheck, Scale, Search, Star, MapPin,
-    AlertTriangle, ChevronRight, Loader2, Phone, Globe, FolderOpen, Plus
+    AlertTriangle, Loader2, FolderOpen, Plus
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { NavLink } from 'react-router-dom';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { listAttorneys, updateProject } from '../services/firestoreService';
+import { getProjectsForUser } from '../services/dashboardData';
 import PageHeader from '../components/PageHeader';
 
+const RESTRICTED_STATES = ['CA', 'NY', 'NJ', 'CT', 'TX'];
 
 const ComplianceGateway = () => {
     const { userData } = useAuth();
+    const navigate = useNavigate();
     const [attorneys, setAttorneys] = useState([]);
+    const [projects, setProjects] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [selected, setSelected] = useState(null);
+    const [assigningAttorneyId, setAssigningAttorneyId] = useState('');
+    const [assignmentError, setAssignmentError] = useState('');
 
     useEffect(() => {
-        const fetchAttorneys = async () => {
+        const fetchComplianceData = async () => {
             try {
-                const snap = await getDocs(collection(db, 'attorneys'));
-                if (snap.docs.length > 0) {
-                    setAttorneys(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-                } else {
-                    setAttorneys([]);
-                }
+                const [attorneyData, projectData] = await Promise.all([
+                    listAttorneys(),
+                    getProjectsForUser(userData),
+                ]);
+
+                const normalizedAttorneys = (attorneyData || []).map(attorney => ({
+                    id: attorney.id,
+                    name: attorney.name || 'Unknown Attorney',
+                    firm: attorney.firm || 'Independent Practice',
+                    specialty: attorney.specialty || (Array.isArray(attorney.specialties) ? attorney.specialties.join(', ') : 'Real Estate'),
+                    jurisdiction: Array.isArray(attorney.jurisdiction)
+                        ? attorney.jurisdiction
+                        : (attorney.barState ? [attorney.barState] : []),
+                    rating: Number(attorney.rating) || 0,
+                    deals: Number(attorney.deals ?? attorney.completedDeals ?? 0),
+                    fee: attorney.fee || (attorney.hourlyRate ? `$${attorney.hourlyRate}/hr` : 'Rate on request'),
+                    verified: Boolean(attorney.verified),
+                }));
+
+                setAttorneys(normalizedAttorneys);
+                setProjects(projectData || []);
             } catch (err) {
-                console.error('Attorney fetch error:', err);
+                console.error('Compliance data fetch error:', err);
                 setAttorneys([]);
+                setProjects([]);
             } finally {
                 setLoading(false);
             }
         };
-        fetchAttorneys();
-    }, []);
+
+        if (userData?.uid) {
+            fetchComplianceData();
+        }
+    }, [userData]);
+
+    const activeDeals = projects.filter(project => !['completed', 'closed', 'cancelled'].includes(String(project.status || '').toLowerCase()));
+
+    const restrictedDeals = activeDeals.filter(project => {
+        const state = String(project.propertyState || project.state || '').toUpperCase();
+        return RESTRICTED_STATES.includes(state);
+    });
+
+    const pendingAttorneyDeals = restrictedDeals.filter(project => !(project.attorneyId || project.attorneyUid || project.attorneyName));
+    const attorneySelectionComplete = pendingAttorneyDeals.length === 0;
+
+    const complianceChecks = [
+        {
+            label: 'Identity Verification (KYC)',
+            status: ['verified', 'approved'].includes(String(userData?.kycStatus || '').toLowerCase()) ? 'complete' : 'pending',
+            note: userData?.kycStatus ? `Current status: ${userData.kycStatus}` : 'KYC status not recorded yet',
+        },
+        {
+            label: 'Accredited Investor Status',
+            status: userData?.role !== 'investor' || Boolean(userData?.accreditedInvestor) ? 'complete' : 'pending',
+            note: userData?.role === 'investor'
+                ? (userData?.accreditedInvestor ? 'Accredited investor confirmed' : 'Accredited investor confirmation pending')
+                : 'Not required for your role',
+        },
+        {
+            label: 'Attorney Selection',
+            status: attorneySelectionComplete ? 'complete' : 'pending',
+            note: restrictedDeals.length
+                ? `${pendingAttorneyDeals.length} restricted-jurisdiction deal(s) still require attorney assignment`
+                : 'No restricted-jurisdiction deals currently active',
+        },
+        {
+            label: 'Non-Circumvention Agreement',
+            status: userData?.nonCircumventionAccepted ? 'complete' : 'pending',
+            note: userData?.nonCircumventionAccepted ? 'Agreement accepted on profile' : 'Agreement acceptance not recorded',
+        },
+        {
+            label: 'Platform Fee Acknowledgment',
+            status: userData?.platformFeeAcknowledged || userData?.feeAcknowledged ? 'complete' : 'pending',
+            note: userData?.platformFeeAcknowledged || userData?.feeAcknowledged
+                ? 'Fee acknowledgment completed'
+                : 'Fee acknowledgment pending',
+        },
+    ];
+
+    const checksPassed = complianceChecks.filter(check => check.status === 'complete').length;
+    const jurisdictionsCovered = new Set(attorneys.flatMap(attorney => attorney.jurisdiction || [])).size;
+
+    const handleAttorneySelect = async (attorney) => {
+        setAssignmentError('');
+        setSelected(attorney.id);
+
+        const targetDeal = pendingAttorneyDeals[0];
+        if (!targetDeal?.id) return;
+
+        setAssigningAttorneyId(attorney.id);
+        try {
+            await updateProject(targetDeal.id, {
+                attorneyId: attorney.id,
+                attorneyName: attorney.name,
+            });
+
+            setProjects(prevProjects => prevProjects.map(project => (
+                project.id === targetDeal.id
+                    ? { ...project, attorneyId: attorney.id, attorneyName: attorney.name }
+                    : project
+            )));
+        } catch (error) {
+            console.error('Failed to assign attorney:', error);
+            setAssignmentError('Unable to assign attorney right now. Please try again.');
+        } finally {
+            setAssigningAttorneyId('');
+        }
+    };
 
     const filtered = attorneys.filter(a =>
         a.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -52,7 +150,7 @@ const ComplianceGateway = () => {
                     subtitle="Jurisdiction-gated attorney selection. All deals in restricted zones require platform-vetted legal counsel."
                     badge="Attorney Gated"
                     actions={
-                        <button className="btn btn-secondary flex items-center gap-2 text-sm">
+                        <button className="btn btn-secondary flex items-center gap-2 text-sm" onClick={() => navigate('/app/attorneys')}>
                             <Plus size={14} /> Invite Attorney
                         </button>
                     }
@@ -61,11 +159,21 @@ const ComplianceGateway = () => {
                 {/* Status Banner */}
                 <div className="mt-6 mb-8 p-4 rounded-2xl border border-green-200 bg-green-50 dark:bg-green-900/10 dark:border-green-800 flex items-center gap-4">
                     <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center shrink-0">
-                        <CheckCircle2 size={20} className="text-success" />
+                        {checksPassed === complianceChecks.length ? (
+                            <CheckCircle2 size={20} className="text-success" />
+                        ) : (
+                            <AlertTriangle size={20} className="text-warning" />
+                        )}
                     </div>
                     <div>
-                        <p className="font-bold text-sm text-text-primary">All Compliance Up to Date</p>
-                        <p className="text-xs text-text-secondary mt-0.5">No active deals requiring attorney selection. Your portfolio is compliant.</p>
+                        <p className="font-bold text-sm text-text-primary">
+                            {checksPassed === complianceChecks.length ? 'All Compliance Up to Date' : 'Compliance Attention Needed'}
+                        </p>
+                        <p className="text-xs text-text-secondary mt-0.5">
+                            {checksPassed === complianceChecks.length
+                                ? 'All tracked compliance checks are complete for your active deals.'
+                                : `${complianceChecks.length - checksPassed} compliance item(s) still pending review.`}
+                        </p>
                     </div>
                     <NavLink to="/app/deal-room" className="ml-auto text-sm font-bold text-primary hover:underline whitespace-nowrap">
                         View Deal Room →
@@ -75,10 +183,10 @@ const ComplianceGateway = () => {
                 {/* Compliance Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                     {[
-                        { label: 'Active Deals', value: '0', icon: FolderOpen, color: 'text-primary', bg: 'bg-primary/5' },
-                        { label: 'Checks Passed', value: '12', icon: CheckCircle2, color: 'text-success', bg: 'bg-success/5' },
+                        { label: 'Active Deals', value: String(activeDeals.length), icon: FolderOpen, color: 'text-primary', bg: 'bg-primary/5' },
+                        { label: 'Checks Passed', value: String(checksPassed), icon: CheckCircle2, color: 'text-success', bg: 'bg-success/5' },
                         { label: 'Attorneys Available', value: String(attorneys.length), icon: Scale, color: 'text-info', bg: 'bg-info/5' },
-                        { label: 'Jurisdictions Covered', value: '18', icon: MapPin, color: 'text-purple', bg: 'bg-purple/5' },
+                        { label: 'Jurisdictions Covered', value: String(jurisdictionsCovered), icon: MapPin, color: 'text-purple', bg: 'bg-purple/5' },
                     ].map(s => (
                         <div key={s.label} className="bg-surface border border-border-light rounded-2xl p-5 flex items-center gap-3">
                             <div className={`w-10 h-10 rounded-xl ${s.bg} flex items-center justify-center`}>
@@ -161,9 +269,15 @@ const ComplianceGateway = () => {
                                     <div className={`flex items-center gap-2 shrink-0 transition-all ${selected === attorney.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                                         <button
                                             className="btn btn-primary text-xs px-4 py-2"
-                                            onClick={e => { e.stopPropagation(); alert(`Selecting ${attorney.name}...`); }}
+                                            disabled={assigningAttorneyId === attorney.id}
+                                            onClick={e => {
+                                                e.stopPropagation();
+                                                handleAttorneySelect(attorney);
+                                            }}
                                         >
-                                            Select
+                                            {assigningAttorneyId === attorney.id
+                                                ? 'Assigning...'
+                                                : (selected === attorney.id ? 'Selected' : 'Select')}
                                         </button>
                                     </div>
                                 </div>
@@ -178,17 +292,17 @@ const ComplianceGateway = () => {
                     )}
                 </div>
 
+                {assignmentError && (
+                    <div className="mt-4 p-3 rounded-xl bg-danger/5 border border-danger/10 text-danger text-xs font-medium">
+                        {assignmentError}
+                    </div>
+                )}
+
                 {/* Compliance Checkpoints */}
                 <div className="mt-6 bg-surface border border-border-light rounded-2xl p-6">
                     <h3 className="font-bold text-text-primary mb-4">Compliance Checkpoints</h3>
                     <div className="space-y-3">
-                        {[
-                            { label: 'Identity Verification (KYC)', status: 'complete', note: 'Level 2 — Completed Feb 10, 2026' },
-                            { label: 'Accredited Investor Status', status: 'complete', note: 'Self-certified — Valid until Dec 31, 2026' },
-                            { label: 'Attorney Selection', status: 'pending', note: 'Required for deals in CA, NY, TX' },
-                            { label: 'Non-Circumvention Agreement', status: 'complete', note: 'Signed digitally — Feb 1, 2026' },
-                            { label: 'Platform Fee Acknowledgment', status: 'complete', note: 'Accepted at registration' },
-                        ].map(cp => (
+                        {complianceChecks.map(cp => (
                             <div key={cp.label} className="flex items-center gap-4 p-3 rounded-xl bg-background border border-border-light">
                                 <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${cp.status === 'complete' ? 'bg-success/10 text-success' : 'bg-amber-100 text-amber-600'}`}>
                                     {cp.status === 'complete' ? <CheckCircle2 size={14} /> : <AlertTriangle size={12} />}

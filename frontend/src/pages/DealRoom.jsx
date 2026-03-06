@@ -2,38 +2,39 @@ import React, { useState, useEffect } from 'react';
 import { Share, UserPlus, PenTool, FileText, CheckCircle2, Lock, Navigation, MoreHorizontal, Download, Folder, FolderOpen, AlertCircle, Loader2, Plus, ArrowRight, Building, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { getProjectsForUser, formatDateValue, toSafeNumber } from '../services/dashboardData';
+import { sendMessage, subscribeToMessages } from '../services/firestoreService';
 import PageHeader from '../components/PageHeader';
+
+function normalizeMilestoneStatus(status) {
+    const normalized = String(status || '').toLowerCase();
+    if (['complete', 'completed', 'done'].includes(normalized)) return 'completed';
+    if (['in_progress', 'in progress', 'active', 'ongoing'].includes(normalized)) return 'in_progress';
+    return 'upcoming';
+}
 
 const DealRoom = () => {
     const { userData } = useAuth();
+    const navigate = useNavigate();
     const [projects, setProjects] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedProject, setSelectedProject] = useState(null);
+    const [messages, setMessages] = useState([]);
+    const [newMessage, setNewMessage] = useState('');
+    const [sendingMessage, setSendingMessage] = useState(false);
+
+    const activeProject = selectedProject || projects[0] || null;
 
     useEffect(() => {
         const fetchProjects = async () => {
             try {
-                // Determine which projects to fetch based on user role/involvement
-                let q;
-                if (userData?.role === 'owner') {
-                    q = query(collection(db, 'projects'), where('ownerId', '==', userData.uid));
-                } else if (userData?.role === 'developer') {
-                    q = query(collection(db, 'projects'), where('developerId', '==', userData.uid));
-                } else if (userData?.role === 'investor') {
-                    q = query(collection(db, 'projects'), where('investors', 'array-contains', userData.uid));
-                } else {
-                    // Admin gets all or fallback
-                    q = query(collection(db, 'projects'));
-                }
-
-                const querySnapshot = await getDocs(q);
-                const projData = querySnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
+                const projData = await getProjectsForUser(userData);
                 setProjects(projData);
+                setSelectedProject(prevSelected => {
+                    if (!projData.length) return null;
+                    if (!prevSelected?.id) return projData[0];
+                    return projData.find(project => project.id === prevSelected.id) || projData[0];
+                });
             } catch (error) {
                 console.error('Error fetching projects:', error);
                 setProjects([]);
@@ -46,6 +47,40 @@ const DealRoom = () => {
             fetchProjects();
         }
     }, [userData]);
+
+    useEffect(() => {
+        if (!activeProject?.id) {
+            setMessages([]);
+            return;
+        }
+
+        const unsubscribe = subscribeToMessages(activeProject.id, (nextMessages) => {
+            setMessages(nextMessages || []);
+        });
+
+        return () => {
+            if (typeof unsubscribe === 'function') unsubscribe();
+        };
+    }, [activeProject?.id]);
+
+    const handleSendMessage = async () => {
+        if (!newMessage.trim() || !activeProject?.id || !userData?.uid) return;
+
+        setSendingMessage(true);
+        try {
+            await sendMessage({
+                projectId: activeProject.id,
+                senderId: userData.uid,
+                senderName: userData.name || userData.email || 'User',
+                text: newMessage.trim(),
+            });
+            setNewMessage('');
+        } catch (error) {
+            console.error('Failed to send project message:', error);
+        } finally {
+            setSendingMessage(false);
+        }
+    };
 
     const hasActiveDeals = projects.length > 0;
 
@@ -88,7 +123,7 @@ const DealRoom = () => {
                                 <Building size={18} className="text-info mb-3" />
                                 <h4 className="font-bold text-sm mb-1 text-text-primary">List a Property</h4>
                                 <p className="text-xs text-text-secondary">Owners can create anonymized listings and invite developers.</p>
-                                <NavLink to="/app/marketplace" className="text-info text-xs font-bold mt-3 flex items-center gap-1">
+                                <NavLink to="/app/create-listing" className="text-info text-xs font-bold mt-3 flex items-center gap-1">
                                     Create Listing <ArrowRight size={12} />
                                 </NavLink>
                             </div>
@@ -99,10 +134,8 @@ const DealRoom = () => {
         );
     }
 
-    const activeProject = selectedProject || projects[0];
-
     const formatCurrency = (amount) =>
-        new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
+        new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(toSafeNumber(amount));
 
     const phaseLabel = { planning: 'Planning', permitting: 'Permitting', funding_close: 'Funding Close', construction: 'Construction', completion: 'Completion' };
     const milestoneColor = { completed: 'text-success', in_progress: 'text-info', upcoming: 'text-text-tertiary' };
@@ -148,22 +181,32 @@ const DealRoom = () => {
                                     <FileText size={16} className="text-primary" /> Milestone Tracker
                                 </h3>
                                 <div className="flex flex-col gap-4">
-                                    {(activeProject.milestones || []).map((m, i) => (
-                                        <div key={i} className="flex items-center gap-4">
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${milestoneBg[m.status] || 'bg-surface-element'}`}>
-                                                {m.status === 'completed' ? <CheckCircle2 size={14} className="text-success" /> :
-                                                    m.status === 'in_progress' ? <Navigation size={14} className="text-info" /> :
+                                    {(activeProject.milestones || []).length > 0 ? (activeProject.milestones || []).map((m, i) => {
+                                        const milestoneStatus = normalizeMilestoneStatus(m.status);
+                                        const milestoneTitle = m.title || m.label || `Milestone ${i + 1}`;
+                                        const milestoneDate = m.date || m.dueDate || m.createdAt;
+
+                                        return (
+                                            <div key={i} className="flex items-center gap-4">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${milestoneBg[milestoneStatus] || 'bg-surface-element'}`}>
+                                                    {milestoneStatus === 'completed' ? <CheckCircle2 size={14} className="text-success" /> :
+                                                        milestoneStatus === 'in_progress' ? <Navigation size={14} className="text-info" /> :
                                                         <Lock size={14} className="text-text-tertiary" />}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <p className={`text-sm font-bold ${milestoneColor[milestoneStatus] || 'text-text-primary'}`}>{milestoneTitle}</p>
+                                                    <p className="text-xs text-text-secondary">{formatDateValue(milestoneDate)}</p>
+                                                </div>
+                                                <span className={`text-xs font-bold px-2 py-1 rounded-full ${milestoneBg[milestoneStatus] || 'bg-surface-element'} ${milestoneColor[milestoneStatus] || 'text-text-secondary'}`}>
+                                                    {milestoneStatus === 'completed' ? 'Done' : milestoneStatus === 'in_progress' ? 'In Progress' : 'Upcoming'}
+                                                </span>
                                             </div>
-                                            <div className="flex-1">
-                                                <p className={`text-sm font-bold ${milestoneColor[m.status] || 'text-text-primary'}`}>{m.title}</p>
-                                                <p className="text-xs text-text-secondary">{m.date}</p>
-                                            </div>
-                                            <span className={`text-xs font-bold px-2 py-1 rounded-full ${milestoneBg[m.status] || 'bg-surface-element'} ${milestoneColor[m.status] || 'text-text-secondary'}`}>
-                                                {m.status === 'completed' ? 'Done' : m.status === 'in_progress' ? 'In Progress' : 'Upcoming'}
-                                            </span>
+                                        );
+                                    }) : (
+                                        <div className="text-sm text-text-secondary bg-surface-element rounded-xl px-4 py-3">
+                                            No milestones recorded for this project yet.
                                         </div>
-                                    ))}
+                                    )}
                                 </div>
                             </div>
 
@@ -185,25 +228,42 @@ const DealRoom = () => {
                                 <h3 className="font-bold text-text-primary mb-4 flex items-center gap-2">
                                     <Lock size={14} className="text-warning" /> Internal Messaging
                                 </h3>
-                                <div className="bg-surface-element rounded-xl p-4 mb-4 space-y-3">
-                                    <div className="flex gap-3">
-                                        <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">SC</div>
-                                        <div>
-                                            <p className="text-xs text-text-secondary">Sarah Chen · Attorney · 2h ago</p>
-                                            <p className="text-sm text-text-primary">Permit filing documents are ready for review. Please check the attached term sheet revisions.</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-3">
-                                        <div className="w-7 h-7 rounded-full bg-info/10 flex items-center justify-center text-xs font-bold text-info">MR</div>
-                                        <div>
-                                            <p className="text-xs text-text-secondary">Marcus R. · Developer · 5h ago</p>
-                                            <p className="text-sm text-text-primary">Phase 2 site plan uploaded. Ready for owner approval before we proceed to permits.</p>
-                                        </div>
-                                    </div>
+                                <div className="bg-surface-element rounded-xl p-4 mb-4 space-y-3 max-h-64 overflow-y-auto">
+                                    {messages.length === 0 ? (
+                                        <p className="text-sm text-text-secondary">No messages yet for this project.</p>
+                                    ) : messages.map((message) => {
+                                        const initials = String(message.senderName || 'U')
+                                            .split(' ')
+                                            .map(part => part[0])
+                                            .join('')
+                                            .slice(0, 2)
+                                            .toUpperCase();
+
+                                        return (
+                                            <div key={message.id} className="flex gap-3">
+                                                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">{initials}</div>
+                                                <div>
+                                                    <p className="text-xs text-text-secondary">{message.senderName || 'User'} · {formatDateValue(message.createdAt, 'Recently')}</p>
+                                                    <p className="text-sm text-text-primary">{message.text}</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                                 <div className="flex gap-2">
-                                    <input type="text" placeholder="Type a message..." className="flex-1 border border-border-light rounded-xl px-4 py-2.5 text-sm bg-surface-element focus:outline-none focus:border-primary" />
-                                    <button className="btn btn-primary px-5">Send</button>
+                                    <input
+                                        type="text"
+                                        value={newMessage}
+                                        onChange={e => setNewMessage(e.target.value)}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter') handleSendMessage();
+                                        }}
+                                        placeholder="Type a message..."
+                                        className="flex-1 border border-border-light rounded-xl px-4 py-2.5 text-sm bg-surface-element focus:outline-none focus:border-primary"
+                                    />
+                                    <button className="btn btn-primary px-5" onClick={handleSendMessage} disabled={sendingMessage || !newMessage.trim()}>
+                                        {sendingMessage ? 'Sending...' : 'Send'}
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -239,7 +299,7 @@ const DealRoom = () => {
                                     <div className="flex justify-between"><span className="text-text-secondary">Status</span><span className="font-bold text-text-primary capitalize">{activeProject.status}</span></div>
                                     <div className="flex justify-between"><span className="text-text-secondary">Phase</span><span className="font-bold text-text-primary">{phaseLabel[activeProject.phase] || activeProject.phase}</span></div>
                                     <div className="flex justify-between"><span className="text-text-secondary">Location</span><span className="font-bold text-text-primary">{activeProject.propertyCity}, {activeProject.propertyState}</span></div>
-                                    <div className="flex justify-between"><span className="text-text-secondary">Created</span><span className="font-bold text-text-primary">{activeProject.createdAt}</span></div>
+                                    <div className="flex justify-between"><span className="text-text-secondary">Created</span><span className="font-bold text-text-primary">{formatDateValue(activeProject.createdAt)}</span></div>
                                 </div>
                             </div>
 
@@ -247,9 +307,9 @@ const DealRoom = () => {
                             <div className="bg-surface border border-border-light rounded-2xl p-6">
                                 <h3 className="font-bold text-text-primary mb-4">Actions</h3>
                                 <div className="flex flex-col gap-2">
-                                    <button className="btn btn-secondary w-full justify-start gap-2 text-sm"><Download size={14} /> Export Documents</button>
-                                    <button className="btn btn-secondary w-full justify-start gap-2 text-sm"><PenTool size={14} /> E-Sign Agreement</button>
-                                    <button className="btn btn-secondary w-full justify-start gap-2 text-sm"><UserPlus size={14} /> Invite Attorney</button>
+                                    <button className="btn btn-secondary w-full justify-start gap-2 text-sm" onClick={() => navigate(`/app/deal-room/${activeProject.id}`)}><Download size={14} /> Open Workspace</button>
+                                    <button className="btn btn-secondary w-full justify-start gap-2 text-sm" onClick={() => navigate('/app/compliance')}><PenTool size={14} /> E-Sign & Compliance</button>
+                                    <button className="btn btn-secondary w-full justify-start gap-2 text-sm" onClick={() => navigate('/app/attorneys')}><UserPlus size={14} /> Invite Attorney</button>
                                 </div>
                             </div>
                         </div>

@@ -5,9 +5,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import PageHeader from '../components/PageHeader';
-
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { getPropertiesForUser } from '../services/dashboardData';
 
 export default function PropertyManagement() {
     const { userData } = useAuth();
@@ -18,46 +16,42 @@ export default function PropertyManagement() {
 
     useEffect(() => {
         const fetchProperties = async () => {
-            if (!userData?.uid) return;
+            if (!userData?.uid) {
+                setProperties([]);
+                setSelectedProperty(null);
+                setLoading(false);
+                return;
+            }
             try {
-                // Fetch properties owned or managed by this user
-                let q;
-                if (userData.role === 'owner') {
-                    q = query(collection(db, 'properties'), where('ownerUid', '==', userData.uid));
-                } else if (userData.role === 'property_manager') {
-                    q = query(collection(db, 'properties'), where('managerId', '==', userData.uid));
-                } else {
-                    // Admin or other role fallback
-                    q = query(collection(db, 'properties'), where('status', '==', 'approved'));
-                }
-
-                const snapshot = await getDocs(q);
-                const propsData = snapshot.docs.map(doc => {
-                    const data = doc.data();
+                const scopedProperties = await getPropertiesForUser(userData);
+                const propsData = scopedProperties.map(data => {
+                    const units = Number(data.units ?? data.existingUnits) || 0;
+                    const occupied = Number(data.occupied) || 0;
                     // Provide safe defaults for missing arrays/numbers to avoid crashes
                     return {
-                        id: doc.id,
+                        id: data.id,
                         name: data.name || 'Unnamed Property',
-                        address: data.address || 'Address unlisted',
-                        units: data.units || 0,
-                        occupied: data.occupied || 0,
-                        vacancyRate: data.units ? (((data.units - (data.occupied || 0)) / data.units) * 100).toFixed(1) : 0,
-                        monthlyRevenue: data.monthlyRevenue || 0,
+                        address: data.address || data.fullAddress || 'Address unlisted',
+                        units,
+                        occupied,
+                        vacancyRate: units ? (((units - occupied) / units) * 100).toFixed(1) : 0,
+                        monthlyRevenue: Number(data.monthlyRevenue) || 0,
                         status: data.status || 'unknown',
                         manager: data.managerName || 'Owner Managed',
-                        affordable: data.affordable || false,
-                        affordableUnits: data.affordableUnits || 0,
-                        maintenance: data.maintenance || [],
-                        rentRoll: data.rentRoll || []
+                        affordable: Boolean(data.affordable || data.affordableHousingOptIn),
+                        affordableUnits: Number(data.affordableUnits) || 0,
+                        maintenance: Array.isArray(data.maintenance) ? data.maintenance : [],
+                        rentRoll: Array.isArray(data.rentRoll) ? data.rentRoll : [],
+                        complianceRequirements: Array.isArray(data.complianceRequirements) ? data.complianceRequirements : [],
                     };
                 });
 
                 setProperties(propsData);
-                if (propsData.length > 0) {
-                    setSelectedProperty(propsData[0]);
-                }
+                setSelectedProperty(propsData.length > 0 ? propsData[0] : null);
             } catch (error) {
                 console.error('Error fetching managed properties:', error);
+                setProperties([]);
+                setSelectedProperty(null);
             } finally {
                 setLoading(false);
             }
@@ -67,6 +61,15 @@ export default function PropertyManagement() {
     }, [userData]);
 
     const prop = selectedProperty;
+    const occupancyPercent = prop?.units ? Math.round((prop.occupied / prop.units) * 100) : 0;
+    const affordabilityPercent = prop?.units ? Math.round((prop.affordableUnits / prop.units) * 100) : 0;
+    const complianceItems = prop?.complianceRequirements?.length
+        ? prop.complianceRequirements
+        : [
+            { label: 'Annual Income Verification', due: 'TBD', status: 'upcoming' },
+            { label: 'Rent Reasonableness Review', due: 'TBD', status: 'upcoming' },
+            { label: 'City Compliance Report', due: 'TBD', status: 'upcoming' },
+        ];
 
     if (loading) {
         return (
@@ -164,10 +167,10 @@ export default function PropertyManagement() {
                             <div>
                                 <div className="flex justify-between text-xs text-text-tertiary mb-1">
                                     <span>Occupancy Rate</span>
-                                    <span>{Math.round((prop.occupied / prop.units) * 100)}%</span>
+                                    <span>{occupancyPercent}%</span>
                                 </div>
                                 <div className="h-2.5 bg-surface-element rounded-full overflow-hidden">
-                                    <div className="h-full bg-gradient-to-r from-primary to-success rounded-full" style={{ width: `${(prop.occupied / prop.units) * 100}%` }} />
+                                    <div className="h-full bg-gradient-to-r from-primary to-success rounded-full" style={{ width: `${occupancyPercent}%` }} />
                                 </div>
                             </div>
                         </div>
@@ -246,7 +249,7 @@ export default function PropertyManagement() {
                                         {[
                                             ['Affordable Units', String(prop.affordableUnits)],
                                             ['Total Units', String(prop.units)],
-                                            ['Affordability %', `${Math.round((prop.affordableUnits / prop.units) * 100)}%`],
+                                            ['Affordability %', `${affordabilityPercent}%`],
                                             ['Status', 'Compliant'],
                                         ].map(([k, v]) => (
                                             <div key={k} className="bg-surface-element rounded-lg p-3">
@@ -256,19 +259,17 @@ export default function PropertyManagement() {
                                         ))}
                                     </div>
                                     <div className="space-y-2 mt-4">
-                                        {[
-                                            { label: 'Annual Income Verification', due: '2026-12-01', status: 'upcoming' },
-                                            { label: 'Rent Reasonableness Review', due: '2026-09-01', status: 'upcoming' },
-                                            { label: 'City Compliance Report', due: '2026-06-30', status: 'upcoming' },
-                                        ].map((r, i) => (
+                                        {complianceItems.map((r, i) => (
                                             <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-border-light">
                                                 <div className="flex items-center gap-2">
                                                     <Shield size={14} className="text-primary" />
                                                     <span className="text-xs font-medium text-text-primary">{r.label}</span>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-[10px] text-text-tertiary">Due: {r.due}</span>
-                                                    <span className="px-2 py-0.5 rounded-full bg-info/10 text-info text-[10px] font-bold">{r.status}</span>
+                                                    <span className="text-[10px] text-text-tertiary">Due: {r.due || 'TBD'}</span>
+                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.status === 'complete' ? 'bg-success/10 text-success' : 'bg-info/10 text-info'}`}>
+                                                        {r.status || 'upcoming'}
+                                                    </span>
                                                 </div>
                                             </div>
                                         ))}

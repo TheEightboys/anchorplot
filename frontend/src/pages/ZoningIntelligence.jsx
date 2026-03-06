@@ -2,32 +2,57 @@ import React, { useState, useEffect } from 'react';
 import { ArrowUpRight, TrendingUp, Info, Activity, MapPin, Search, Map as MapIcon, Plus, Loader2, Bell } from 'lucide-react';
 import './ZoningIntelligence.css';
 import { useAuth } from '../contexts/AuthContext';
-import { NavLink } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import PageHeader from '../components/PageHeader';
+import { getZoningAlertsForUser, formatDateValue, getPropertiesForUser } from '../services/dashboardData';
 
 
 const ZoningIntelligence = () => {
     const { userData } = useAuth();
+    const navigate = useNavigate();
     const [trackedProperties, setTrackedProperties] = useState([]);
+    const [alerts, setAlerts] = useState([]);
+    const [selectedTrackedId, setSelectedTrackedId] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchTrackedProperties = async () => {
             try {
-                const q = userData?.uid
-                    ? query(collection(db, 'trackedProperties'), where('userId', '==', userData.uid))
-                    : query(collection(db, 'trackedProperties'));
-                const querySnapshot = await getDocs(q);
-                const propsData = querySnapshot.docs.map(doc => ({
+                const [trackedSnapshot, zoningAlerts] = await Promise.all([
+                    getDocs(userData?.uid
+                        ? query(collection(db, 'trackedProperties'), where('userId', '==', userData.uid))
+                        : query(collection(db, 'trackedProperties'))),
+                    getZoningAlertsForUser(userData),
+                ]);
+
+                let propsData = trackedSnapshot.docs.map(doc => ({
                     id: doc.id,
-                    ...doc.data()
+                    ...doc.data(),
+                    city: doc.data().city || 'Unknown City',
+                    state: doc.data().state || '',
+                    parcelId: doc.data().parcelId || doc.data().apn || 'N/A',
                 }));
+
+                if (propsData.length === 0 && userData?.uid) {
+                    const scopedProperties = await getPropertiesForUser(userData);
+                    propsData = scopedProperties.map(property => ({
+                        id: `property-${property.id}`,
+                        city: property.city || 'Unknown City',
+                        state: property.state || '',
+                        parcelId: property.parcelId || property.apn || property.id,
+                        sourcePropertyId: property.id,
+                    }));
+                }
+
                 setTrackedProperties(propsData);
+                setSelectedTrackedId(propsData[0]?.id || null);
+                setAlerts(zoningAlerts || []);
             } catch (error) {
                 console.error('Error fetching tracked properties:', error);
                 setTrackedProperties([]);
+                setAlerts([]);
             } finally {
                 setLoading(false);
             }
@@ -37,6 +62,13 @@ const ZoningIntelligence = () => {
     }, [userData]);
 
     const hasTrackedProperties = trackedProperties.length > 0;
+    const selectedTrackedProperty = trackedProperties.find(property => property.id === selectedTrackedId) || trackedProperties[0] || null;
+    const relevantAlerts = alerts.filter(alert => {
+        if (!selectedTrackedProperty) return true;
+        const sameCity = String(alert.city || '').toLowerCase() === String(selectedTrackedProperty.city || '').toLowerCase();
+        const sameParcel = selectedTrackedProperty.parcelId && String(alert.parcelId || '').toLowerCase() === String(selectedTrackedProperty.parcelId).toLowerCase();
+        return sameCity || sameParcel;
+    });
 
     if (loading) {
         return (
@@ -58,7 +90,7 @@ const ZoningIntelligence = () => {
                     <p className="text-text-secondary mb-8 leading-relaxed max-w-sm">
                         Monitor specific parcels for zoning changes, new ordinances and development incentives. Add your first property to begin tracking.
                     </p>
-                    <button className="btn btn-primary flex items-center gap-2">
+                    <button className="btn btn-primary flex items-center gap-2" onClick={() => navigate('/app/marketplace')}>
                         <Plus size={18} /> Add Property to Watchlist
                     </button>
 
@@ -86,8 +118,86 @@ const ZoningIntelligence = () => {
     }
 
     return (
-        <div className="zoning-container flex h-full w-full">
-            {/* Future populated state */}
+        <div className="zoning-container flex h-[calc(100vh-73px)] w-full">
+            <div className="zoning-sidebar p-5 overflow-y-auto w-[420px] min-w-[380px] border-r border-border-light bg-surface z-10">
+                <PageHeader
+                    title="Zoning Intelligence"
+                    subtitle="Track live zoning changes and parcel-specific alerts."
+                    badge={`${trackedProperties.length} tracked`}
+                />
+
+                <div className="mt-5 space-y-2">
+                    {trackedProperties.map(property => (
+                        <button
+                            key={property.id}
+                            onClick={() => setSelectedTrackedId(property.id)}
+                            className={`w-full text-left p-3 rounded-xl border transition-all ${selectedTrackedProperty?.id === property.id
+                                ? 'border-primary bg-primary/5'
+                                : 'border-border-light bg-background hover:bg-surface-hover'
+                                }`}
+                        >
+                            <p className="text-sm font-bold text-text-primary">{property.city}{property.state ? `, ${property.state}` : ''}</p>
+                            <p className="text-xs text-text-secondary mt-1">Parcel: {property.parcelId}</p>
+                        </button>
+                    ))}
+                </div>
+
+                <div className="mt-6">
+                    <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-wider mb-3">Recent Alerts</h3>
+                    <div className="space-y-2">
+                        {relevantAlerts.length === 0 ? (
+                            <div className="p-3 rounded-xl border border-border-light bg-background text-xs text-text-secondary">
+                                No zoning alerts yet for this tracked property.
+                            </div>
+                        ) : relevantAlerts.map(alert => (
+                            <div key={alert.id} className="p-3 rounded-xl border border-border-light bg-background">
+                                <p className="text-sm font-semibold text-text-primary">{alert.title || alert.changeType || 'Zoning Update'}</p>
+                                <p className="text-xs text-text-secondary mt-1">{alert.summary || alert.description || 'No details provided.'}</p>
+                                <div className="mt-2 flex items-center justify-between">
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${String(alert.impact || '').toLowerCase() === 'high'
+                                        ? 'bg-danger/10 text-danger'
+                                        : String(alert.impact || '').toLowerCase() === 'positive'
+                                            ? 'bg-success/10 text-success'
+                                            : 'bg-info/10 text-info'
+                                        }`}>
+                                        {String(alert.impact || 'info').toUpperCase()}
+                                    </span>
+                                    <span className="text-[10px] text-text-tertiary">{formatDateValue(alert.effectiveDate || alert.createdAt, 'Recently')}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            <div className="zoning-map-area flex-1 relative bg-surface-hover overflow-hidden">
+                <div className="absolute inset-0 bg-map-pattern opacity-20"></div>
+                <div className="absolute inset-0 p-6">
+                    <div className="glass p-5 rounded-2xl shadow-sm max-w-lg">
+                        <h3 className="text-lg font-bold text-text-primary mb-2">Property Context</h3>
+                        {selectedTrackedProperty ? (
+                            <>
+                                <p className="text-sm text-text-secondary">
+                                    Monitoring <strong className="text-text-primary">{selectedTrackedProperty.city}{selectedTrackedProperty.state ? `, ${selectedTrackedProperty.state}` : ''}</strong>
+                                    {' '}for zoning and ordinance impacts.
+                                </p>
+                                <div className="mt-4 grid grid-cols-2 gap-3">
+                                    <div className="bg-background/60 border border-border-light rounded-lg p-3">
+                                        <p className="text-[10px] font-bold text-text-tertiary uppercase">Parcel</p>
+                                        <p className="text-xs font-semibold text-text-primary mt-1">{selectedTrackedProperty.parcelId}</p>
+                                    </div>
+                                    <div className="bg-background/60 border border-border-light rounded-lg p-3">
+                                        <p className="text-[10px] font-bold text-text-tertiary uppercase">Active Alerts</p>
+                                        <p className="text-xs font-semibold text-text-primary mt-1">{relevantAlerts.length}</p>
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <p className="text-sm text-text-secondary">Select a tracked property to view local zoning intelligence.</p>
+                        )}
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };

@@ -7,7 +7,20 @@ import {
     Activity, Layers, Target, Zap
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { listProperties, listProjects, listInvestmentsByUser, listZoningAlerts } from '../services/firestoreService';
+import { listInvestmentsByUser } from '../services/firestoreService';
+import { getPropertiesForUser, getProjectsForUser, getZoningAlertsForUser } from '../services/dashboardData';
+
+function toTimestamp(value) {
+    if (!value) return 0;
+    if (typeof value === 'object' && typeof value.toDate === 'function') {
+        return value.toDate().getTime();
+    }
+    if (typeof value === 'object' && Number.isFinite(value.seconds)) {
+        return value.seconds * 1000;
+    }
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) ? parsed : 0;
+}
 
 // Stat card component
 function StatCard({ icon: Icon, label, value, change, changeType, color, onClick }) {
@@ -109,10 +122,10 @@ export default function Dashboard() {
         async function fetchDashboardData() {
             try {
                 const [properties, projects, investments, alerts] = await Promise.allSettled([
-                    listProperties(),
-                    listProjects(),
+                    getPropertiesForUser(userData),
+                    getProjectsForUser(userData),
                     currentUser?.uid ? listInvestmentsByUser(currentUser.uid) : Promise.resolve([]),
-                    currentUser?.uid ? listZoningAlerts({ userId: currentUser.uid }) : Promise.resolve([]),
+                    getZoningAlertsForUser(userData),
                 ]);
 
                 setStats({
@@ -123,7 +136,10 @@ export default function Dashboard() {
                 });
 
                 if (properties.status === 'fulfilled') {
-                    setRecentProperties(properties.value.slice(0, 5));
+                    const sortedProperties = [...properties.value].sort(
+                        (firstProperty, secondProperty) => toTimestamp(secondProperty.createdAt) - toTimestamp(firstProperty.createdAt)
+                    );
+                    setRecentProperties(sortedProperties.slice(0, 5));
                 }
             } catch (err) {
                 console.error('Dashboard data fetch error:', err);
@@ -132,7 +148,7 @@ export default function Dashboard() {
             }
         }
         fetchDashboardData();
-    }, [currentUser?.uid]);
+    }, [currentUser?.uid, userData]);
 
     const greeting = () => {
         const hour = new Date().getHours();
@@ -148,6 +164,9 @@ export default function Dashboard() {
         owner: 'Property Owner',
         developer: 'Developer',
         investor: 'Investor',
+        realtor: 'Realtor Partner',
+        attorney: 'Attorney',
+        property_manager: 'Property Manager',
     };
 
     return (
@@ -178,8 +197,6 @@ export default function Dashboard() {
                     icon={Building2}
                     label="Total Properties"
                     value={loadingData ? '—' : stats.properties}
-                    change="+12%"
-                    changeType="up"
                     color="green"
                     onClick={() => navigate('/app/marketplace')}
                 />
@@ -187,8 +204,6 @@ export default function Dashboard() {
                     icon={Briefcase}
                     label="Active Projects"
                     value={loadingData ? '—' : stats.projects}
-                    change="+3"
-                    changeType="up"
                     color="blue"
                     onClick={() => navigate('/app/deal-room')}
                 />
