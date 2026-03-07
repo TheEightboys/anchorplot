@@ -90,9 +90,9 @@ const PublicLayout = () => {
                     <div>
                         <h4 className="font-bold text-text-primary mb-5 text-sm">Legal</h4>
                         <ul className="text-sm text-text-secondary space-y-3 flex flex-col">
-                            {['Terms of Service', 'Privacy Policy', 'Security'].map(l => (
-                                <a key={l} href="#" className="hover:text-primary transition-colors">{l}</a>
-                            ))}
+                            <a href="#" className="hover:text-primary transition-colors">Terms of Service</a>
+                            <NavLink to="/privacy-policy" className="hover:text-primary transition-colors">Privacy Policy</NavLink>
+                            <a href="#" className="hover:text-primary transition-colors">Security</a>
                         </ul>
                     </div>
                 </div>

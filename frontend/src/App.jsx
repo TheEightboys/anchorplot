@@ -12,6 +12,7 @@ import PublicLayout from './components/PublicLayout';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 import PendingApproval from './pages/PendingApproval';
 import SetupAdmin from './pages/SetupAdmin';
 
@@ -79,6 +80,7 @@ function App() {
                 {/* Public Website Routes */}
                 <Route path="/" element={<PublicLayout />}>
                   <Route index element={<Home />} />
+                  <Route path="privacy-policy" element={<PrivacyPolicy />} />
                 </Route>
 
                 <Route path="/login" element={<Login />} />
