@@ -90,7 +90,7 @@ const PublicLayout = () => {
                     <div>
                         <h4 className="font-bold text-text-primary mb-5 text-sm">Legal</h4>
                         <ul className="text-sm text-text-secondary space-y-3 flex flex-col">
-                            <a href="#" className="hover:text-primary transition-colors">Terms of Service</a>
+                            <NavLink to="/terms-of-service" className="hover:text-primary transition-colors">Terms of Service</NavLink>
                             <NavLink to="/privacy-policy" className="hover:text-primary transition-colors">Privacy Policy</NavLink>
                             <a href="#" className="hover:text-primary transition-colors">Security</a>
                         </ul>

@@ -13,6 +13,7 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
 import PendingApproval from './pages/PendingApproval';
 import SetupAdmin from './pages/SetupAdmin';
 
@@ -81,6 +82,7 @@ function App() {
                 <Route path="/" element={<PublicLayout />}>
                   <Route index element={<Home />} />
                   <Route path="privacy-policy" element={<PrivacyPolicy />} />
+                  <Route path="terms-of-service" element={<TermsOfService />} />
                 </Route>
 
                 <Route path="/login" element={<Login />} />
