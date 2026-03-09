@@ -5,7 +5,7 @@ import {
     Building2, Ruler, Trees, DollarSign, Target, Heart, Truck
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { createProperty } from '../services/firestoreService';
+import { createParcel, createListing } from '../services/firestoreService';
 import PageHeader from '../components/PageHeader';
 
 const STEPS = ['Location & Basics', 'Zoning & Structure', 'Build Potential', 'Affordable Housing', 'Review & Submit'];
@@ -90,10 +90,31 @@ export default function CreateListing() {
         setLoading(true);
         setError('');
         try {
-            await createProperty({
-                ...form,
+            const {
+                city, state, neighborhoodBand, lotSizeRange, lotSizeMin, lotSizeMax,
+                zoningDistrict, overlayFlags, existingStructure, existingUnits, existingSquareFeet,
+                yearBuilt, condition, buildPotential, maxUnits, maxHeight, maxFAR,
+                // listing specific
+                targetOutcomes, estimatedBudgetMin, estimatedBudgetMax, targetTimeline,
+                affordableHousingOptIn, amiLevel, affordabilityTerm, publicFundingDesired,
+                relocationSupport, relocationHousing, relocationStorage, ownerNotes
+            } = form;
+
+            const parcelRef = await createParcel({
+                city, state, neighborhoodBand, lotSizeRange, lotSizeMin, lotSizeMax,
+                zoningDistrict, overlayFlags, existingStructure, existingUnits, existingSquareFeet,
+                yearBuilt, condition, buildPotential, maxUnits, maxHeight, maxFAR,
                 ownerId: currentUser.uid,
+                ownerUid: currentUser.uid, // Also sync ownerUid to remain compatible
                 ownerName: userData?.name || 'Owner',
+            });
+
+            await createListing({
+                parcelId: parcelRef.id,
+                targetOutcomes, estimatedBudgetMin, estimatedBudgetMax, targetTimeline,
+                affordableHousingOptIn, amiLevel, affordabilityTerm, publicFundingDesired,
+                relocationSupport, relocationHousing, relocationStorage, ownerNotes,
+                ownerId: currentUser.uid,
                 status: 'pending',
                 disclosureStage: 'browse',
                 views: 0,

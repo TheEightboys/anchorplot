@@ -141,10 +141,20 @@ const Marketplace = () => {
     useEffect(() => {
         const fetchProperties = async () => {
             try {
-                const querySnapshot = await getDocs(collection(db, 'properties'));
-                const propsData = querySnapshot.docs
+                const listingsSnap = await getDocs(collection(db, 'listings'));
+                const parcelsSnap = await getDocs(collection(db, 'parcels'));
+                
+                const parcelsMap = {};
+                parcelsSnap.docs.forEach(doc => {
+                    parcelsMap[doc.id] = { id: doc.id, ...doc.data() };
+                });
+
+                const propsData = listingsSnap.docs
                     .map(doc => {
-                        const propertyData = { id: doc.id, ...doc.data() };
+                        const listingData = { id: doc.id, ...doc.data() };
+                        const parcelData = parcelsMap[listingData.parcelId] || {};
+                        const propertyData = { ...parcelData, ...listingData, id: listingData.id, parcelId: parcelData.id };
+                        
                         const lotSize = getPropertyLotSize(propertyData);
                         const normalizedTags = Array.isArray(propertyData.tags) && propertyData.tags.length > 0
                             ? propertyData.tags

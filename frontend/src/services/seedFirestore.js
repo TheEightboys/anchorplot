@@ -7,9 +7,9 @@ import { collection, doc, setDoc, getDocs } from 'firebase/firestore';
  * Call from browser console: import('/src/services/seedFirestore.js').then(m => m.seedAll())
  */
 
-const SAMPLE_PROPERTIES = [
+const SAMPLE_PARCELS = [
     {
-        id: 'prop-001',
+        id: 'parcel-001',
         city: 'San Francisco',
         state: 'CA',
         neighborhoodBand: 'SoMa / Mission Edge',
@@ -18,18 +18,11 @@ const SAMPLE_PROPERTIES = [
         overlayFlags: ['Homeownership Assistance', 'Inclusionary Housing'],
         existingStructure: 'Single-story light industrial, partially vacant',
         buildPotential: 'High-Density Residential (8–12 units)',
-        targetOutcomes: ['Condo conversion', 'Market rate rental', 'Mixed-income overlay'],
-        matchScore: 98,
-        targetAmI: 80,
-        affordabilityTerm: 55,
-        publicFundingDesired: true,
         ownerUid: 'seed-owner-001',
-        status: 'approved',
         createdAt: '2026-02-10',
-        views: 142,
     },
     {
-        id: 'prop-002',
+        id: 'parcel-002',
         city: 'Austin',
         state: 'TX',
         neighborhoodBand: 'East Austin — Near East Side',
@@ -38,18 +31,11 @@ const SAMPLE_PROPERTIES = [
         overlayFlags: ['Vertical Mixed Use (VMU)', 'Transit Corridor Overlay'],
         existingStructure: 'Single-family home, 1970s construction',
         buildPotential: 'ADU + Accessory Units (up to 4 units)',
-        targetOutcomes: ['Long-term rental portfolio', 'ADU income stream'],
-        matchScore: 92,
-        targetAmI: 60,
-        affordabilityTerm: 30,
-        publicFundingDesired: false,
         ownerUid: 'seed-owner-002',
-        status: 'approved',
         createdAt: '2026-02-12',
-        views: 89,
     },
     {
-        id: 'prop-003',
+        id: 'parcel-003',
         city: 'New York',
         state: 'NY',
         neighborhoodBand: 'Bed-Stuy, Brooklyn',
@@ -58,18 +44,11 @@ const SAMPLE_PROPERTIES = [
         overlayFlags: ['Mandatory Inclusionary Housing (MIH)', 'Commercial Overlay C1-3'],
         existingStructure: '3-story rowhouse, partially occupied',
         buildPotential: 'Up to 6-story residential with ground-floor retail',
-        targetOutcomes: ['Affordable housing credit', 'New market tax credit'],
-        matchScore: 87,
-        targetAmI: 50,
-        affordabilityTerm: 40,
-        publicFundingDesired: true,
         ownerUid: 'seed-owner-003',
-        status: 'approved',
         createdAt: '2026-02-15',
-        views: 211,
     },
     {
-        id: 'prop-004',
+        id: 'parcel-004',
         city: 'Denver',
         state: 'CO',
         neighborhoodBand: 'Five Points / RiNo',
@@ -78,18 +57,11 @@ const SAMPLE_PROPERTIES = [
         overlayFlags: ['Income-Qualified Housing (IQ)', 'Design Review Required'],
         existingStructure: 'Vacant lot (former automotive)',
         buildPotential: 'Up to 8-story mixed-use tower',
-        targetOutcomes: ['Market rate + affordable split', 'Opportunity Zone investment'],
-        matchScore: 95,
-        targetAmI: 70,
-        affordabilityTerm: 55,
-        publicFundingDesired: true,
         ownerUid: 'seed-owner-004',
-        status: 'pending_review',
         createdAt: '2026-02-19',
-        views: 58,
     },
     {
-        id: 'prop-005',
+        id: 'parcel-005',
         city: 'Chicago',
         state: 'IL',
         neighborhoodBand: 'Pilsen / Lower West Side',
@@ -98,15 +70,71 @@ const SAMPLE_PROPERTIES = [
         overlayFlags: ['Affordable Requirements Ordinance (ARO)', 'Pilot Neighborhood'],
         existingStructure: 'Two-story commercial strip, 60% vacant',
         buildPotential: 'Mixed-income residential above retail (5–7 stories)',
+        ownerUid: 'seed-owner-005',
+        createdAt: '2026-02-08',
+    },
+];
+
+const SAMPLE_LISTINGS = [
+    {
+        id: 'listing-001',
+        parcelId: 'parcel-001',
+        targetOutcomes: ['Condo conversion', 'Market rate rental', 'Mixed-income overlay'],
+        matchScore: 98,
+        targetAmI: 80,
+        affordabilityTerm: 55,
+        publicFundingDesired: true,
+        status: 'approved',
+        views: 142,
+        createdAt: '2026-02-10',
+    },
+    {
+        id: 'listing-002',
+        parcelId: 'parcel-002',
+        targetOutcomes: ['Long-term rental portfolio', 'ADU income stream'],
+        matchScore: 92,
+        targetAmI: 60,
+        affordabilityTerm: 30,
+        publicFundingDesired: false,
+        status: 'approved',
+        views: 89,
+        createdAt: '2026-02-12',
+    },
+    {
+        id: 'listing-003',
+        parcelId: 'parcel-003',
+        targetOutcomes: ['Affordable housing credit', 'New market tax credit'],
+        matchScore: 87,
+        targetAmI: 50,
+        affordabilityTerm: 40,
+        publicFundingDesired: true,
+        status: 'approved',
+        views: 211,
+        createdAt: '2026-02-15',
+    },
+    {
+        id: 'listing-004',
+        parcelId: 'parcel-004',
+        targetOutcomes: ['Market rate + affordable split', 'Opportunity Zone investment'],
+        matchScore: 95,
+        targetAmI: 70,
+        affordabilityTerm: 55,
+        publicFundingDesired: true,
+        status: 'pending_review',
+        views: 58,
+        createdAt: '2026-02-19',
+    },
+    {
+        id: 'listing-005',
+        parcelId: 'parcel-005',
         targetOutcomes: ['Community land trust structure', 'Section 8 HAP contract'],
         matchScore: 83,
         targetAmI: 30,
         affordabilityTerm: 99,
         publicFundingDesired: true,
-        ownerUid: 'seed-owner-005',
         status: 'approved',
-        createdAt: '2026-02-08',
         views: 176,
+        createdAt: '2026-02-08',
     },
 ];
 
@@ -173,7 +201,7 @@ const SAMPLE_ZONING_ALERTS = [
     {
         id: 'alert-001',
         city: 'San Francisco',
-        parcelId: 'seed-parcel-001',
+        parcelId: 'parcel-001',
         userId: 'seed-owner-001',
         changeType: 'Height Limit Increase',
         summary: 'Maximum building height in MUO zones along Market St. Corridor increased from 35 ft to 50 ft effective March 1, 2026.',
@@ -188,7 +216,7 @@ const SAMPLE_ZONING_ALERTS = [
     {
         id: 'alert-002',
         city: 'Austin',
-        parcelId: 'seed-parcel-002',
+        parcelId: 'parcel-002',
         userId: 'seed-owner-002',
         changeType: 'Overlay Added',
         summary: 'A new Transit Corridor Overlay (TCO) has been applied to properties within 1/4 mile of the Red Line MetroRail, enabling increased density by-right.',
@@ -221,7 +249,7 @@ const SAMPLE_PROJECTS = [
     {
         id: 'proj-001',
         name: 'SoMa Mixed-Income Residential',
-        propertyId: 'prop-001',
+        parcelId: 'parcel-001',
         ownerId: 'seed-owner-001',
         developerId: 'seed-dev-001',
         investors: ['seed-investor-001'],
@@ -249,7 +277,7 @@ export async function seedAll() {
     console.log('🌱 AnchorPlot Firestore seed starting...');
 
     // Only seed if empty
-    const existingCheck = await getDocs(collection(db, 'properties'));
+    const existingCheck = await getDocs(collection(db, 'parcels'));
     if (existingCheck.docs.length > 0) {
         console.log('✅ Database already has data — skipping seed.');
         return { skipped: true };
@@ -257,9 +285,13 @@ export async function seedAll() {
 
     const writes = [];
 
-    for (const prop of SAMPLE_PROPERTIES) {
-        const { id, ...data } = prop;
-        writes.push(setDoc(doc(db, 'properties', id), data));
+    for (const parcel of SAMPLE_PARCELS) {
+        const { id, ...data } = parcel;
+        writes.push(setDoc(doc(db, 'parcels', id), data));
+    }
+    for (const listing of SAMPLE_LISTINGS) {
+        const { id, ...data } = listing;
+        writes.push(setDoc(doc(db, 'listings', id), data));
     }
     for (const atty of SAMPLE_ATTORNEYS) {
         const { id, ...data } = atty;
@@ -280,7 +312,7 @@ export async function seedAll() {
 
     await Promise.all(writes);
 
-    console.log(`✅ Seeded: ${SAMPLE_PROPERTIES.length} properties, ${SAMPLE_ATTORNEYS.length} attorneys, ${SAMPLE_ZONING_ALERTS.length} zoning alerts, ${SAMPLE_INVESTMENTS.length} investments, ${SAMPLE_PROJECTS.length} projects.`);
+    console.log(`✅ Seeded: ${SAMPLE_PARCELS.length} parcels, ${SAMPLE_LISTINGS.length} listings, ${SAMPLE_ATTORNEYS.length} attorneys, ${SAMPLE_ZONING_ALERTS.length} zoning alerts, ${SAMPLE_INVESTMENTS.length} investments, ${SAMPLE_PROJECTS.length} projects.`);
     return { success: true };
 }
 

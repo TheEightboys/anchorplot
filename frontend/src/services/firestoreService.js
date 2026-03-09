@@ -32,14 +32,44 @@ export async function listUsers(filters = {}) {
 }
 
 // ================================
-//  PROPERTIES (Anonymized Listings)
+//  PARCELS (Canonical Land Record)
 // ================================
-export const propertiesRef = collection(db, 'properties');
+export const parcelsRef = collection(db, 'parcels');
 
-export async function createProperty(data) {
+export async function createParcel(data) {
+    return addDoc(parcelsRef, {
+        ...data,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+    });
+}
+
+export async function getParcel(id) {
+    const snap = await getDoc(doc(db, 'parcels', id));
+    return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function listParcels(filters = {}) {
+    let q = parcelsRef;
+    if (filters.ownerUid) q = query(q, where('ownerUid', '==', filters.ownerUid));
+    if (filters.city) q = query(q, where('city', '==', filters.city));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function updateParcel(id, data) {
+    return updateDoc(doc(db, 'parcels', id), { ...data, updatedAt: serverTimestamp() });
+}
+
+// ================================
+//  LISTINGS (Market Opportunity)
+// ================================
+export const listingsRef = collection(db, 'listings');
+
+export async function createListing(data) {
     const resolvedMatchScore = getMatchScore(data);
 
-    return addDoc(propertiesRef, {
+    return addDoc(listingsRef, {
         ...data,
         matchScore: resolvedMatchScore,
         status: data.status || 'pending_review',
@@ -50,34 +80,34 @@ export async function createProperty(data) {
     });
 }
 
-export async function getProperty(id) {
-    const snap = await getDoc(doc(db, 'properties', id));
+export async function getListing(id) {
+    const snap = await getDoc(doc(db, 'listings', id));
     return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
-export async function listProperties(filters = {}) {
-    let q = propertiesRef;
+export async function listListings(filters = {}) {
+    let q = listingsRef;
     if (filters.status) q = query(q, where('status', '==', filters.status));
+    if (filters.parcelId) q = query(q, where('parcelId', '==', filters.parcelId));
     if (filters.city) q = query(q, where('city', '==', filters.city));
-    if (filters.ownerUid) q = query(q, where('ownerUid', '==', filters.ownerUid));
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-export async function updateProperty(id, data) {
-    return updateDoc(doc(db, 'properties', id), { ...data, updatedAt: serverTimestamp() });
+export async function updateListing(id, data) {
+    return updateDoc(doc(db, 'listings', id), { ...data, updatedAt: serverTimestamp() });
 }
 
-export async function approveProperty(id) {
-    return updateProperty(id, { status: 'approved' });
+export async function approveListing(id) {
+    return updateListing(id, { status: 'approved' });
 }
 
-export async function rejectProperty(id, reason = '') {
-    return updateProperty(id, { status: 'rejected', rejectionReason: reason });
+export async function rejectListing(id, reason = '') {
+    return updateListing(id, { status: 'rejected', rejectionReason: reason });
 }
 
-export async function incrementPropertyViews(id) {
-    return updateDoc(doc(db, 'properties', id), { views: increment(1) });
+export async function incrementListingViews(id) {
+    return updateDoc(doc(db, 'listings', id), { views: increment(1) });
 }
 
 // ================================
@@ -94,8 +124,8 @@ export async function createPitch(data) {
     });
 }
 
-export async function listPitchesByProperty(propertyId) {
-    const q = query(pitchesRef, where('propertyId', '==', propertyId));
+export async function listPitchesByParcel(parcelId) {
+    const q = query(pitchesRef, where('parcelId', '==', parcelId));
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }

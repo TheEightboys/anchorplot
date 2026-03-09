@@ -52,9 +52,9 @@ const generateSeedData = () => {
     }
   ];
 
-  const properties = [
+  const parcels = [
     {
-      id: 'prop-sf-001',
+      id: 'parcel-sf-001',
       ownerUid: 'user-owner-1',
       city: 'San Francisco',
       state: 'CA',
@@ -62,18 +62,12 @@ const generateSeedData = () => {
       lotSizeRange: '5,000–7,500 sqft',
       zoningDistrict: 'MUO',
       buildPotential: 'High-Density Residential (8–12 units)',
-      targetOutcomes: ['Condo conversion', 'Mixed-income overlay'],
-      targetAMI: 80,
-      affordabilityTerm: 55,
       overlayFlags: ['Inclusionary Housing', 'TOD'],
-      status: 'approved',
-      views: 142,
-      matchScore: 98,
       estimatedValue: 2500000,
       createdAt: '2026-02-18T11:00:00Z'
     },
     {
-      id: 'prop-austin-001',
+      id: 'parcel-austin-001',
       ownerUid: 'user-owner-1',
       city: 'Austin',
       state: 'TX',
@@ -81,18 +75,12 @@ const generateSeedData = () => {
       lotSizeRange: '8,000–10,000 sqft',
       zoningDistrict: 'SF-3',
       buildPotential: 'ADU + Accessory Units',
-      targetOutcomes: ['Long-term rental'],
-      targetAMI: 60,
-      affordabilityTerm: 30,
       overlayFlags: ['VMU', 'Transit Corridor'],
-      status: 'approved',
-      views: 89,
-      matchScore: 92,
       estimatedValue: 1800000,
       createdAt: '2026-02-12T15:30:00Z'
     },
     {
-      id: 'prop-ny-001',
+      id: 'parcel-ny-001',
       ownerUid: 'user-owner-1',
       city: 'New York',
       state: 'NY',
@@ -100,14 +88,44 @@ const generateSeedData = () => {
       lotSizeRange: '3,000–4,500 sqft',
       zoningDistrict: 'R6A',
       buildPotential: '6-story residential + retail',
+      overlayFlags: ['MIH', 'C1-3'],
+      estimatedValue: 3200000,
+      createdAt: '2026-02-20T09:45:00Z'
+    }
+  ];
+
+  const listings = [
+    {
+      id: 'listing-sf-001',
+      parcelId: 'parcel-sf-001',
+      targetOutcomes: ['Condo conversion', 'Mixed-income overlay'],
+      targetAMI: 80,
+      affordabilityTerm: 55,
+      status: 'approved',
+      views: 142,
+      matchScore: 98,
+      createdAt: '2026-02-18T11:00:00Z'
+    },
+    {
+      id: 'listing-austin-001',
+      parcelId: 'parcel-austin-001',
+      targetOutcomes: ['Long-term rental'],
+      targetAMI: 60,
+      affordabilityTerm: 30,
+      status: 'approved',
+      views: 89,
+      matchScore: 92,
+      createdAt: '2026-02-12T15:30:00Z'
+    },
+    {
+      id: 'listing-ny-001',
+      parcelId: 'parcel-ny-001',
       targetOutcomes: ['Affordable housing credit', 'New market tax credit'],
       targetAMI: 50,
       affordabilityTerm: 40,
-      overlayFlags: ['MIH', 'C1-3'],
       status: 'approved',
       views: 211,
       matchScore: 87,
-      estimatedValue: 3200000,
       createdAt: '2026-02-20T09:45:00Z'
     }
   ];
@@ -116,7 +134,7 @@ const generateSeedData = () => {
     {
       id: 'proj-001',
       name: 'SoMa Mixed-Income Development',
-      propertyId: 'prop-sf-001',
+      propertyId: 'parcel-sf-001',
       ownerId: 'user-owner-1',
       developerId: 'user-dev-1',
       investors: ['user-inv-1'],
@@ -212,7 +230,7 @@ const generateSeedData = () => {
     {
       id: 'alert-001',
       userId: 'user-owner-1',
-      propertyId: 'prop-sf-001',
+      propertyId: 'parcel-sf-001',
       city: 'San Francisco',
       state: 'CA',
       type: 'zoning_change',
@@ -262,7 +280,8 @@ const generateSeedData = () => {
 
   return {
     users,
-    properties,
+    parcels,
+    listings,
     projects,
     investments,
     attorneys,
@@ -286,10 +305,14 @@ export const seedProductionData = async () => {
       batch.set(userRef, { ...user, createdAt: serverTimestamp() });
     });
 
-    // Seed properties
-    data.properties.forEach(property => {
-      const propRef = doc(db, 'properties', property.id);
-      batch.set(propRef, { ...property, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    // Seed parcels and listings
+    data.parcels.forEach(parcel => {
+      const pRef = doc(db, 'parcels', parcel.id);
+      batch.set(pRef, { ...parcel, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    });
+    data.listings.forEach(listing => {
+      const lRef = doc(db, 'listings', listing.id);
+      batch.set(lRef, { ...listing, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
     });
 
     // Seed projects

@@ -82,33 +82,44 @@ export async function getProjectsForUser(userData) {
     return safeFetch(() => fetchAll('projects'));
 }
 
-export async function getPropertiesForUser(userData) {
+export async function getParcelsForUser(userData) {
     if (!userData?.uid) return [];
 
     const userId = userData.uid;
     const role = userData.role;
 
     if (role === 'admin') {
-        return safeFetch(() => fetchAll('properties'));
+        return safeFetch(() => fetchAll('parcels'));
     }
 
     if (role === 'owner') {
-        const [ownerIdProperties, ownerUidProperties] = await Promise.all([
-            safeFetch(() => fetchEquals('properties', 'ownerId', userId)),
-            safeFetch(() => fetchEquals('properties', 'ownerUid', userId)),
+        const [ownerIdParcels, ownerUidParcels] = await Promise.all([
+            safeFetch(() => fetchEquals('parcels', 'ownerId', userId)),
+            safeFetch(() => fetchEquals('parcels', 'ownerUid', userId)),
         ]);
-        return dedupeById([...ownerIdProperties, ...ownerUidProperties]);
+        return dedupeById([...ownerIdParcels, ...ownerUidParcels]);
     }
 
     if (role === 'property_manager') {
-        const [managerIdProperties, managerUidProperties] = await Promise.all([
-            safeFetch(() => fetchEquals('properties', 'managerId', userId)),
-            safeFetch(() => fetchEquals('properties', 'managerUid', userId)),
+        const [managerIdParcels, managerUidParcels] = await Promise.all([
+            safeFetch(() => fetchEquals('parcels', 'managerId', userId)),
+            safeFetch(() => fetchEquals('parcels', 'managerUid', userId)),
         ]);
-        return dedupeById([...managerIdProperties, ...managerUidProperties]);
+        return dedupeById([...managerIdParcels, ...managerUidParcels]);
     }
 
-    return safeFetch(() => fetchAll('properties'));
+    return safeFetch(() => fetchAll('parcels'));
+}
+
+export async function getListingsForUser(userData) {
+    if (!userData?.uid) return [];
+    
+    const role = userData.role;
+    if (role === 'admin') {
+        return safeFetch(() => fetchAll('listings'));
+    }
+    
+    return safeFetch(() => fetchAll('listings'));
 }
 
 export async function getZoningAlertsForUser(userData) {

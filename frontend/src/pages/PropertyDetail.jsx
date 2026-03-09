@@ -5,7 +5,7 @@ import {
     Lock, Unlock, Shield, ChevronRight, ArrowLeft, DollarSign, Users, Info
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { getProperty, incrementPropertyViews, createPitch } from '../services/firestoreService';
+import { getListing, getParcel, incrementListingViews, createPitch } from '../services/firestoreService';
 
 const DISCLOSURE_STAGES = [
     { key: 'browse', label: 'Browse', icon: Eye, desc: 'Anonymized view' },
@@ -30,10 +30,11 @@ export default function PropertyDetail() {
     useEffect(() => {
         async function load() {
             try {
-                const p = await getProperty(id);
-                if (p) {
-                    setProperty(p);
-                    incrementPropertyViews(id);
+                const l = await getListing(id);
+                if (l) {
+                    const p = await getParcel(l.parcelId);
+                    setProperty({ ...p, ...l, id: l.id, parcelId: p.id });
+                    incrementListingViews(id);
                 }
             } catch (e) { console.error(e); }
             setLoading(false);
@@ -45,7 +46,8 @@ export default function PropertyDetail() {
         setSubmitting(true);
         try {
             await createPitch({
-                propertyId: id,
+                listingId: id,
+                parcelId: property.parcelId,
                 developerId: userData?.uid,
                 developerName: userData?.name || 'Developer',
                 ...pitchData,
