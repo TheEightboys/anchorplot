@@ -377,7 +377,7 @@ const PrivacyPolicy = () => {
                                 </a>
                             </p>
                             <p className={paragraphClass}>AnchorPlot, Inc.</p>
-                            <p className={paragraphClass}>[Insert mailing address]</p>
+                            <p className={paragraphClass}>Newark, Delaware 19713</p>
                         </section>
                     </div>
                 </div>

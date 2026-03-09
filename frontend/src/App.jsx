@@ -14,7 +14,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
-import SecurityAndTrust from './pages/SecurityAndTrust';
+import Security from './pages/Security';
 import PendingApproval from './pages/PendingApproval';
 import SetupAdmin from './pages/SetupAdmin';
 
@@ -84,7 +84,7 @@ function App() {
                   <Route index element={<Home />} />
                   <Route path="privacy-policy" element={<PrivacyPolicy />} />
                   <Route path="terms-of-service" element={<TermsOfService />} />
-                  <Route path="security-and-trust" element={<SecurityAndTrust />} />
+                  <Route path="security" element={<Security />} />
                 </Route>
 
                 <Route path="/login" element={<Login />} />
