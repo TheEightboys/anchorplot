@@ -157,7 +157,7 @@ export default function Dashboard() {
         return 'Good evening';
     };
 
-    const userName = userData?.name || currentUser?.displayName || 'Investor';
+    const userName = userData?.name && userData.name !== 'User' ? userData.name : (currentUser?.displayName || currentUser?.email || 'Investor');
     const userRole = userData?.role || 'investor';
     const roleLabels = {
         admin: 'Administrator',

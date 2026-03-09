@@ -114,7 +114,7 @@ export function AuthProvider({ children }) {
                             await setDoc(docRef, {
                                 uid: user.uid,
                                 email: user.email,
-                                name: user.displayName || 'User',
+                                name: user.displayName || user.email || 'User',
                                 role: 'investor', // default role
                                 kycStatus: 'pending',
                                 approvalStatus: 'pending',

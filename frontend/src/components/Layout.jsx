@@ -110,11 +110,11 @@ const Layout = () => {
                 <div className="p-4 border-t border-border-light">
                     <div className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-hover transition-colors cursor-pointer group">
                         <img
-                            src={`https://ui-avatars.com/api/?name=${encodeURIComponent(userData?.name || currentUser?.email || 'U')}&background=1e5631&color=fff&rounded=true`}
+                            src={`https://ui-avatars.com/api/?name=${encodeURIComponent(userData?.name && userData.name !== 'User' ? userData.name : (currentUser?.displayName || currentUser?.email || 'U'))}&background=1e5631&color=fff&rounded=true`}
                             alt="User" className="w-9 h-9 rounded-full ring-2 ring-border-light"
                         />
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold truncate text-text-primary">{userData?.name || currentUser?.displayName || 'User'}</p>
+                            <p className="text-sm font-bold truncate text-text-primary">{userData?.name && userData.name !== 'User' ? userData.name : (currentUser?.displayName || currentUser?.email || 'User')}</p>
                             <p className="text-[10px] text-text-secondary truncate">{ROLE_LABELS[userRole] || userRole}</p>
                         </div>
                         <button onClick={handleLogout} className="opacity-0 group-hover:opacity-100 p-1 text-text-secondary hover:text-danger transition-all" title="Log out">

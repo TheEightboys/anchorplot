@@ -1,6 +1,6 @@
 # 🏗️ AnchorPlot - Real Estate Development Platform
 
-A comprehensive platform connecting property owners, developers, investors, and service providers in the real estate development ecosystem.
+A comprehensive platform connecting property owners, developers, investors and service providers in the real estate development ecosystem.
 
 ## 🚀 Features
 

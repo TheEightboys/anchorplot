@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import { migrateRealData } from './services/migrateData';
 
 // Layouts
 import Layout from './components/Layout';
@@ -72,6 +73,18 @@ function PrivateRoute({ children }) {
 
 
 function App() {
+  React.useEffect(() => {
+    // Run migration silently once if not already done
+    const migrationFlag = localStorage.getItem('anchorplot_migration_v1');
+    if (!migrationFlag) {
+      migrateRealData().then((migrated) => {
+          if (migrated) {
+            console.log("Auto-migration successful.");
+          }
+      });
+    }
+  }, []);
+
   return (
     <ErrorBoundary>
       <ThemeProvider>
