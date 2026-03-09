@@ -92,7 +92,7 @@ const PublicLayout = () => {
                         <ul className="text-sm text-text-secondary space-y-3 flex flex-col">
                             <NavLink to="/terms-of-service" className="hover:text-primary transition-colors">Terms of Service</NavLink>
                             <NavLink to="/privacy-policy" className="hover:text-primary transition-colors">Privacy Policy</NavLink>
-                            <NavLink to="/security" className="hover:text-primary transition-colors">Security</NavLink>
+                            <NavLink to="/security" className="hover:text-primary transition-colors">Security & Trust</NavLink>
                         </ul>
                     </div>
                 </div>
