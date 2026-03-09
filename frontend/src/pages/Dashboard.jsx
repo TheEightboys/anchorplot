@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { listInvestmentsByUser } from '../services/firestoreService';
-import { getPropertiesForUser, getProjectsForUser, getZoningAlertsForUser } from '../services/dashboardData';
+import { getParcelsForUser, getProjectsForUser, getZoningAlertsForUser } from '../services/dashboardData';
 
 function toTimestamp(value) {
     if (!value) return 0;
@@ -122,7 +122,7 @@ export default function Dashboard() {
         async function fetchDashboardData() {
             try {
                 const [properties, projects, investments, alerts] = await Promise.allSettled([
-                    getPropertiesForUser(userData),
+                    getParcelsForUser(userData),
                     getProjectsForUser(userData),
                     currentUser?.uid ? listInvestmentsByUser(currentUser.uid) : Promise.resolve([]),
                     getZoningAlertsForUser(userData),

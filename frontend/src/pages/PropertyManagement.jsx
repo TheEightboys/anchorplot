@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import PageHeader from '../components/PageHeader';
-import { getPropertiesForUser } from '../services/dashboardData';
+import { getParcelsForUser } from '../services/dashboardData';
 
 export default function PropertyManagement() {
     const { userData } = useAuth();
@@ -23,7 +23,7 @@ export default function PropertyManagement() {
                 return;
             }
             try {
-                const scopedProperties = await getPropertiesForUser(userData);
+                const scopedProperties = await getParcelsForUser(userData);
                 const propsData = scopedProperties.map(data => {
                     const units = Number(data.units ?? data.existingUnits) || 0;
                     const occupied = Number(data.occupied) || 0;

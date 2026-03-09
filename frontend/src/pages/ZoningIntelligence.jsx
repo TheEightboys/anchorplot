@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import PageHeader from '../components/PageHeader';
-import { getZoningAlertsForUser, formatDateValue, getPropertiesForUser } from '../services/dashboardData';
+import { getZoningAlertsForUser, formatDateValue, getParcelsForUser } from '../services/dashboardData';
 
 
 const ZoningIntelligence = () => {
@@ -36,7 +36,7 @@ const ZoningIntelligence = () => {
                 }));
 
                 if (propsData.length === 0 && userData?.uid) {
-                    const scopedProperties = await getPropertiesForUser(userData);
+                    const scopedProperties = await getParcelsForUser(userData);
                     propsData = scopedProperties.map(property => ({
                         id: `property-${property.id}`,
                         city: property.city || 'Unknown City',
