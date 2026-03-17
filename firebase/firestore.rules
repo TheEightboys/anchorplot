@@ -43,6 +43,10 @@ service cloud.firestore {
       return isSignedIn() && (role() in allowedRoles || isAdmin());
     }
 
+    function hasParcelId(data) {
+      return data.parcelId is string && data.parcelId.size() > 0;
+    }
+
     function projectDoc(projectId) {
       return get(/databases/$(database)/documents/projects/$(projectId));
     }
@@ -84,7 +88,10 @@ service cloud.firestore {
 
     match /listings/{listingId} {
       allow read: if isApproved();
-      allow create: if isApproved() && hasRole(['owner']) && request.resource.data.ownerId == request.auth.uid;
+      allow create: if isApproved()
+        && hasRole(['owner'])
+        && request.resource.data.ownerId == request.auth.uid
+        && hasParcelId(request.resource.data);
       allow update: if isApproved() && (
         resource.data.ownerId == request.auth.uid ||
         resource.data.ownerUid == request.auth.uid ||
@@ -95,7 +102,10 @@ service cloud.firestore {
 
     match /pitches/{pitchId} {
       allow read: if isApproved();
-      allow create: if isApproved() && hasRole(['developer']) && request.resource.data.developerId == request.auth.uid;
+      allow create: if isApproved()
+        && hasRole(['developer'])
+        && request.resource.data.developerId == request.auth.uid
+        && hasParcelId(request.resource.data);
       allow update: if isApproved() && (
         resource.data.developerId == request.auth.uid ||
         resource.data.ownerId == request.auth.uid ||
@@ -106,7 +116,9 @@ service cloud.firestore {
 
     match /projects/{projectId} {
       allow read: if isProjectMember(projectId);
-      allow create: if isApproved() && hasRole(['owner', 'developer', 'admin']);
+      allow create: if isApproved()
+        && hasRole(['owner', 'developer', 'admin'])
+        && hasParcelId(request.resource.data);
       allow update: if isProjectMember(projectId) && hasRole(['owner', 'developer', 'attorney', 'property_manager', 'admin']);
       allow delete: if isAdmin();
     }
@@ -127,7 +139,10 @@ service cloud.firestore {
         (resource.data.projectId != null && isProjectMember(resource.data.projectId)) ||
         isAdmin()
       );
-      allow create: if isApproved() && hasRole(['investor']) && request.resource.data.userId == request.auth.uid;
+      allow create: if isApproved()
+        && hasRole(['investor'])
+        && request.resource.data.userId == request.auth.uid
+        && hasParcelId(request.resource.data);
       allow update: if isApproved() && (resource.data.userId == request.auth.uid || isAdmin());
       allow delete: if isAdmin();
     }
@@ -136,8 +151,19 @@ service cloud.firestore {
       allow read: if isApproved() && (
         resource.data.projectId != null && isProjectMember(resource.data.projectId)
       );
-      allow create, update: if isApproved() && hasRole(['owner', 'developer', 'admin']);
+      allow create, update: if isApproved()
+        && hasRole(['owner', 'developer', 'admin'])
+        && hasParcelId(request.resource.data);
       allow delete: if isAdmin();
+    }
+
+    match /parcelEvents/{eventId} {
+      allow read: if isApproved();
+      allow create: if isApproved()
+        && hasParcelId(request.resource.data)
+        && request.resource.data.eventType is string
+        && request.resource.data.eventType.size() > 0;
+      allow update, delete: if isAdmin();
     }
 
     match /attorneys/{attorneyId} {

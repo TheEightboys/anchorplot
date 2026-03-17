@@ -182,6 +182,7 @@ export default function PropertyDetail() {
             await createInvestment({
                 userId: userData.uid,
                 projectId: property.projectId || property.id,
+                parcelId: property.parcelId || property.id,
                 projectName: property.title || `${property.city || 'Unknown'} Opportunity`,
                 city: property.city || 'Unknown City',
                 amount: Number(commitAmount),

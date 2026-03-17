@@ -236,6 +236,12 @@ See `mobile/README.md` for setup details.
 
 ## 📊 Features in Detail
 
+### Parcel-Centric Intelligence Layer
+
+AnchorPlot follows a parcel-first architecture where `parcelId` is the canonical record key across listings, pitches, projects, investments, and compliance/funding events.
+
+See `PARCEL_CENTRIC_ARCHITECTURE.md` for relationship model and service details.
+
 ### Dashboard
 - Real-time statistics
 - Project analytics

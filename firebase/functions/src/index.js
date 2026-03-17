@@ -106,7 +106,7 @@ export const createSignedDocumentUploadUrl = onCall({ enforceAppCheck: false }, 
     throw new HttpsError('invalid-argument', 'projectId and fileName are required.');
   }
 
-  const { isMember } = await assertProjectMembership(projectId, uid);
+  const { isMember, project } = await assertProjectMembership(projectId, uid);
   if (!isMember && profile.role !== 'admin') {
     throw new HttpsError('permission-denied', 'You are not a member of this project.');
   }
@@ -124,6 +124,7 @@ export const createSignedDocumentUploadUrl = onCall({ enforceAppCheck: false }, 
 
   await db.collection('documentUploads').add({
     projectId,
+    parcelId: project?.parcelId || null,
     objectPath,
     fileName: safeName,
     contentType,
@@ -155,7 +156,7 @@ export const createSignedDocumentDownloadUrl = onCall({ enforceAppCheck: false }
     throw new HttpsError('invalid-argument', 'projectId and objectPath are required.');
   }
 
-  const { isMember } = await assertProjectMembership(projectId, uid);
+  const { isMember, project } = await assertProjectMembership(projectId, uid);
   if (!isMember && profile.role !== 'admin') {
     throw new HttpsError('permission-denied', 'You are not a member of this project.');
   }
@@ -170,7 +171,7 @@ export const createSignedDocumentDownloadUrl = onCall({ enforceAppCheck: false }
     action: 'document_download_url_created',
     actor: uid,
     target: projectId,
-    metadata: { objectPath },
+    metadata: { objectPath, parcelId: project?.parcelId || null },
   });
 
   return { downloadUrl, expiresInSeconds: 900 };
@@ -193,7 +194,7 @@ export const finalizeUploadedDocument = onCall({ enforceAppCheck: false }, async
     throw new HttpsError('invalid-argument', 'projectId, objectPath and documentName are required.');
   }
 
-  const { isMember } = await assertProjectMembership(projectId, uid);
+  const { isMember, project } = await assertProjectMembership(projectId, uid);
   if (!isMember && profile.role !== 'admin') {
     throw new HttpsError('permission-denied', 'You are not a member of this project.');
   }
@@ -206,6 +207,7 @@ export const finalizeUploadedDocument = onCall({ enforceAppCheck: false }, async
 
   const documentEntry = {
     id: `doc_${nanoid(10)}`,
+    parcelId: project?.parcelId || null,
     objectPath,
     name: documentName,
     version,
@@ -226,6 +228,7 @@ export const finalizeUploadedDocument = onCall({ enforceAppCheck: false }, async
 
   await db.collection('documentUploads').add({
     projectId,
+    parcelId: project?.parcelId || null,
     objectPath,
     finalizedBy: uid,
     status: 'finalized',
@@ -251,7 +254,7 @@ export const createEsignEnvelope = onCall({ enforceAppCheck: false }, async (req
     throw new HttpsError('invalid-argument', 'projectId, documentId, title and signers[] are required.');
   }
 
-  const { isMember } = await assertProjectMembership(projectId, uid);
+  const { isMember, project } = await assertProjectMembership(projectId, uid);
   if (!isMember && profile.role !== 'admin') {
     throw new HttpsError('permission-denied', 'You are not a member of this project.');
   }
@@ -279,6 +282,7 @@ export const createEsignEnvelope = onCall({ enforceAppCheck: false }, async (req
 
   const envelopeData = {
     projectId,
+    parcelId: project?.parcelId || null,
     documentId,
     title,
     signers,

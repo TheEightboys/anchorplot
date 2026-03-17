@@ -9,6 +9,20 @@ import {
 import { db } from './firebase';
 import { getMatchScore } from './matchScore';
 
+function requireParcelId(data, entityName) {
+    const parcelId = String(data?.parcelId || '').trim();
+    if (!parcelId) {
+        throw new Error(`${entityName} must include parcelId. Parcel is the canonical primary record.`);
+    }
+    return parcelId;
+}
+
+async function resolveProjectParcelId(projectId) {
+    if (!projectId) return '';
+    const project = await getProject(projectId);
+    return String(project?.parcelId || '').trim();
+}
+
 // ================================
 //  USERS
 // ================================
@@ -35,6 +49,7 @@ export async function listUsers(filters = {}) {
 //  PARCELS (Canonical Land Record)
 // ================================
 export const parcelsRef = collection(db, 'parcels');
+export const parcelEventsRef = collection(db, 'parcelEvents');
 
 export async function createParcel(data) {
     return addDoc(parcelsRef, {
@@ -61,16 +76,37 @@ export async function updateParcel(id, data) {
     return updateDoc(doc(db, 'parcels', id), { ...data, updatedAt: serverTimestamp() });
 }
 
+export async function createParcelEvent({ parcelId, eventType, source = 'app', actorId = '', payload = {} }) {
+    const canonicalParcelId = requireParcelId({ parcelId }, 'Parcel event');
+    return addDoc(parcelEventsRef, {
+        parcelId: canonicalParcelId,
+        eventType,
+        source,
+        actorId,
+        payload,
+        createdAt: serverTimestamp(),
+    });
+}
+
+export async function listParcelEvents(parcelId, maxCount = 200) {
+    const canonicalParcelId = requireParcelId({ parcelId }, 'Parcel events query');
+    const q = query(parcelEventsRef, where('parcelId', '==', canonicalParcelId), orderBy('createdAt', 'desc'), limit(maxCount));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
 // ================================
 //  LISTINGS (Market Opportunity)
 // ================================
 export const listingsRef = collection(db, 'listings');
 
 export async function createListing(data) {
+    const parcelId = requireParcelId(data, 'Listing');
     const resolvedMatchScore = getMatchScore(data);
 
-    return addDoc(listingsRef, {
+    const ref = await addDoc(listingsRef, {
         ...data,
+        parcelId,
         matchScore: resolvedMatchScore,
         status: data.status || 'pending_review',
         views: 0,
@@ -78,6 +114,16 @@ export async function createListing(data) {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
     });
+
+    await createParcelEvent({
+        parcelId,
+        eventType: 'listing_created',
+        source: 'listing',
+        actorId: data?.ownerId || data?.ownerUid || '',
+        payload: { listingId: ref.id, status: data.status || 'pending_review' },
+    });
+
+    return ref;
 }
 
 export async function getListing(id) {
@@ -116,12 +162,24 @@ export async function incrementListingViews(id) {
 export const pitchesRef = collection(db, 'pitches');
 
 export async function createPitch(data) {
-    return addDoc(pitchesRef, {
+    const parcelId = requireParcelId(data, 'Pitch');
+    const ref = await addDoc(pitchesRef, {
         ...data,
+        parcelId,
         status: 'submitted',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
     });
+
+    await createParcelEvent({
+        parcelId,
+        eventType: 'pitch_submitted',
+        source: 'pitch',
+        actorId: data?.developerId || '',
+        payload: { pitchId: ref.id, listingId: data?.listingId || '' },
+    });
+
+    return ref;
 }
 
 export async function listPitchesByParcel(parcelId) {
@@ -146,8 +204,10 @@ export async function updatePitchStatus(pitchId, status) {
 export const projectsRef = collection(db, 'projects');
 
 export async function createProject(data) {
-    return addDoc(projectsRef, {
+    const parcelId = requireParcelId(data, 'Project');
+    const ref = await addDoc(projectsRef, {
         ...data,
+        parcelId,
         status: 'draft',
         phase: 'planning',
         milestones: [],
@@ -157,6 +217,16 @@ export async function createProject(data) {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
     });
+
+    await createParcelEvent({
+        parcelId,
+        eventType: 'project_created',
+        source: 'project',
+        actorId: data?.ownerId || data?.developerId || '',
+        payload: { projectId: ref.id, phase: 'planning' },
+    });
+
+    return ref;
 }
 
 export async function getProject(id) {
@@ -168,7 +238,15 @@ export async function listProjects(filters = {}) {
     let q = projectsRef;
     if (filters.ownerId) q = query(q, where('ownerId', '==', filters.ownerId));
     if (filters.developerId) q = query(q, where('developerId', '==', filters.developerId));
+    if (filters.parcelId) q = query(q, where('parcelId', '==', filters.parcelId));
     if (filters.status) q = query(q, where('status', '==', filters.status));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function listProjectsByParcel(parcelId) {
+    const canonicalParcelId = requireParcelId({ parcelId }, 'Projects by parcel query');
+    const q = query(projectsRef, where('parcelId', '==', canonicalParcelId));
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
@@ -178,8 +256,9 @@ export async function updateProject(id, data) {
 }
 
 export async function addMilestone(projectId, milestone) {
+    const derivedParcelId = String(milestone?.parcelId || await resolveProjectParcelId(projectId) || '').trim();
     return updateDoc(doc(db, 'projects', projectId), {
-        milestones: arrayUnion({ ...milestone, createdAt: new Date().toISOString() }),
+        milestones: arrayUnion({ ...milestone, parcelId: derivedParcelId || null, createdAt: new Date().toISOString() }),
         updatedAt: serverTimestamp()
     });
 }
@@ -197,11 +276,25 @@ export async function updateEquityLedger(projectId, ledger) {
 export const investmentsRef = collection(db, 'investments');
 
 export async function createInvestment(data) {
-    return addDoc(investmentsRef, {
+    const derivedParcelId = String(data?.parcelId || await resolveProjectParcelId(data?.projectId) || '').trim();
+    const parcelId = requireParcelId({ parcelId: derivedParcelId }, 'Investment');
+
+    const ref = await addDoc(investmentsRef, {
         ...data,
+        parcelId,
         status: 'active',
         createdAt: serverTimestamp(),
     });
+
+    await createParcelEvent({
+        parcelId,
+        eventType: 'investment_committed',
+        source: 'investment',
+        actorId: data?.userId || '',
+        payload: { investmentId: ref.id, projectId: data?.projectId || '' },
+    });
+
+    return ref;
 }
 
 export async function listInvestmentsByUser(userId) {
@@ -212,6 +305,13 @@ export async function listInvestmentsByUser(userId) {
 
 export async function listInvestmentsByProject(projectId) {
     const q = query(investmentsRef, where('projectId', '==', projectId));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function listInvestmentsByParcel(parcelId) {
+    const canonicalParcelId = requireParcelId({ parcelId }, 'Investments by parcel query');
+    const q = query(investmentsRef, where('parcelId', '==', canonicalParcelId));
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
@@ -407,9 +507,11 @@ export async function recordDocumentSignature(projectId, signatureEntry) {
 }
 
 export async function appendProjectPaymentLog(projectId, paymentLog) {
+    const parcelId = String(paymentLog?.parcelId || await resolveProjectParcelId(projectId) || '').trim() || null;
     return updateDoc(doc(db, 'projects', projectId), {
         paymentLogs: arrayUnion({
             ...paymentLog,
+            parcelId,
             txId: paymentLog.txId || `tx_${Date.now()}`,
             createdAt: paymentLog.createdAt || new Date().toISOString(),
         }),
@@ -418,9 +520,11 @@ export async function appendProjectPaymentLog(projectId, paymentLog) {
 }
 
 export async function appendProjectDistributionLog(projectId, distributionLog) {
+    const parcelId = String(distributionLog?.parcelId || await resolveProjectParcelId(projectId) || '').trim() || null;
     return updateDoc(doc(db, 'projects', projectId), {
         distributionLogs: arrayUnion({
             ...distributionLog,
+            parcelId,
             txId: distributionLog.txId || `dist_${Date.now()}`,
             createdAt: distributionLog.createdAt || new Date().toISOString(),
         }),
@@ -445,6 +549,57 @@ export async function listFundingByProject(projectId) {
     const q = query(fundingRef, where('projectId', '==', projectId));
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function listFundingByParcel(parcelId) {
+    const canonicalParcelId = requireParcelId({ parcelId }, 'Funding by parcel query');
+    const q = query(fundingRef, where('parcelId', '==', canonicalParcelId));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function getParcelIntelligenceSnapshot(parcelId) {
+    const canonicalParcelId = requireParcelId({ parcelId }, 'Parcel intelligence snapshot');
+
+    const parcel = await getParcel(canonicalParcelId);
+
+    const [
+        listings,
+        pitches,
+        projects,
+        directInvestments,
+        zoningAlerts,
+        funding,
+        events,
+    ] = await Promise.all([
+        listListings({ parcelId: canonicalParcelId }),
+        listPitchesByParcel(canonicalParcelId),
+        listProjectsByParcel(canonicalParcelId),
+        listInvestmentsByParcel(canonicalParcelId),
+        listZoningAlerts({}),
+        listFundingByParcel(canonicalParcelId),
+        listParcelEvents(canonicalParcelId),
+    ]);
+
+    const projectIds = projects.map(project => project.id);
+    const investmentsByProjectArrays = await Promise.all(projectIds.map(projectId => listInvestmentsByProject(projectId)));
+    const byProjectInvestments = investmentsByProjectArrays.flat();
+
+    const investmentMap = new Map();
+    [...directInvestments, ...byProjectInvestments].forEach(investment => {
+        if (investment?.id) investmentMap.set(investment.id, investment);
+    });
+
+    return {
+        parcel,
+        listings,
+        pitches,
+        projects,
+        investments: Array.from(investmentMap.values()),
+        funding,
+        zoningAlerts: zoningAlerts.filter(alert => alert.parcelId === canonicalParcelId),
+        events,
+    };
 }
 
 // ================================
