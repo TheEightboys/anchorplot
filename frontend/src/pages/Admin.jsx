@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, doc, updateDoc, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { getPlatformConfig, updatePlatformConfig, listDisputes, listAuditLogs } from '../services/firestoreService';
 
 const Admin = () => {
   const { userData } = useAuth();
@@ -20,6 +21,16 @@ const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [actionLoading, setActionLoading] = useState(null); // Track which user action is loading
+  const [feeConfig, setFeeConfig] = useState({
+    transactionFee: '',
+    attorneyReferralFee: '',
+    realtorEquityCap: '',
+    pmSubscription: '',
+    complianceReport: '',
+  });
+  const [savingFeeConfig, setSavingFeeConfig] = useState(false);
+  const [disputes, setDisputes] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [stats, setStats] = useState({
     totalUsers: 0,
     pendingApprovals: 0,
@@ -55,6 +66,22 @@ const Admin = () => {
       // Calculate stats
       const pendingCount = usersData.filter(u => u.approvalStatus === 'pending').length;
       const activeListings = propsData.filter(p => p.status === 'approved').length;
+
+      const [platformConfig, disputesData, auditData] = await Promise.all([
+        getPlatformConfig(),
+        listDisputes(),
+        listAuditLogs(25),
+      ]);
+
+      setFeeConfig({
+        transactionFee: platformConfig.transactionFee || '1.5%',
+        attorneyReferralFee: platformConfig.attorneyReferralFee || '5%',
+        realtorEquityCap: platformConfig.realtorEquityCap || '1.0%',
+        pmSubscription: platformConfig.pmSubscription || '$299/mo',
+        complianceReport: platformConfig.complianceReport || '$49/report',
+      });
+      setDisputes(disputesData || []);
+      setAuditLogs(auditData || []);
 
       setStats({
         totalUsers: usersData.length,
@@ -108,6 +135,34 @@ const Admin = () => {
       alert('Error rejecting user: ' + (error.message || 'Please try again.'));
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleSaveFeeConfig = async () => {
+    setSavingFeeConfig(true);
+    try {
+      await updatePlatformConfig(feeConfig);
+      await loadData();
+    } catch (error) {
+      console.error('Fee config save error:', error);
+      alert('Unable to save fee configuration right now.');
+    } finally {
+      setSavingFeeConfig(false);
+    }
+  };
+
+  const downloadJson = (filename, data) => {
+    try {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download export failed:', error);
+      alert('Unable to export file.');
     }
   };
 
@@ -391,6 +446,82 @@ const Admin = () => {
                 </tbody>
               </table>
             )}
+          </div>
+        </div>
+
+        {/* Platform Operations */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-8">
+          <div className="bg-white dark:bg-gray-800 rounded-[28px] border-2 border-gray-100 dark:border-gray-700 p-6">
+            <h3 className="text-xl font-bold text-text-primary mb-4">Fee Configuration</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {[
+                ['transactionFee', 'Transaction Fee'],
+                ['attorneyReferralFee', 'Attorney Referral Fee'],
+                ['realtorEquityCap', 'Realtor Equity Cap'],
+                ['pmSubscription', 'PM Subscription'],
+                ['complianceReport', 'Compliance Report'],
+              ].map(([key, label]) => (
+                <div key={key} className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-text-secondary uppercase tracking-wider">{label}</label>
+                  <input
+                    value={feeConfig[key] || ''}
+                    onChange={(event) => setFeeConfig(previous => ({ ...previous, [key]: event.target.value }))}
+                    className="px-3 py-2.5 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-sm text-text-primary focus:outline-none focus:border-primary"
+                  />
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={handleSaveFeeConfig}
+              disabled={savingFeeConfig}
+              className="mt-4 px-5 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm disabled:opacity-60"
+            >
+              {savingFeeConfig ? 'Saving...' : 'Save Fee Config'}
+            </button>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-[28px] border-2 border-gray-100 dark:border-gray-700 p-6">
+            <h3 className="text-xl font-bold text-text-primary mb-4">Disputes & Reporting</h3>
+            <div className="mb-5">
+              <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Open Disputes</p>
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {disputes.length === 0 ? (
+                  <div className="text-sm text-text-secondary bg-gray-50 dark:bg-gray-700 rounded-xl px-3 py-2">No disputes recorded.</div>
+                ) : disputes.slice(0, 8).map(dispute => (
+                  <div key={dispute.id} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 rounded-xl px-3 py-2">
+                    <div>
+                      <p className="text-sm font-semibold text-text-primary">{dispute.title || 'Dispute'}</p>
+                      <p className="text-xs text-text-secondary">{dispute.projectId || 'No project linked'}</p>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 capitalize">
+                      {dispute.status || 'open'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Exports</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <button
+                onClick={() => downloadJson('anchorplot-users-export.json', users)}
+                className="px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Export Users
+              </button>
+              <button
+                onClick={() => downloadJson('anchorplot-listings-export.json', properties)}
+                className="px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Export Listings
+              </button>
+              <button
+                onClick={() => downloadJson('anchorplot-audit-export.json', auditLogs)}
+                className="px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Export Audit Logs
+              </button>
+            </div>
           </div>
         </div>
 

@@ -1,0 +1,232 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function currentUserDoc() {
+      return userDoc(request.auth.uid);
+    }
+
+    function profileExists() {
+      return isSignedIn() && currentUserDoc().data != null;
+    }
+
+    function role() {
+      return profileExists() ? currentUserDoc().data.role : null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.role == 'admin' ||
+        role() == 'admin'
+      );
+    }
+
+    function isApproved() {
+      return isSignedIn() && (
+        isAdmin() ||
+        currentUserDoc().data.approvalStatus == 'approved'
+      );
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function hasRole(allowedRoles) {
+      return isSignedIn() && (role() in allowedRoles || isAdmin());
+    }
+
+    function projectDoc(projectId) {
+      return get(/databases/$(database)/documents/projects/$(projectId));
+    }
+
+    function isProjectMember(projectId) {
+      return isApproved() && (
+        projectDoc(projectId).data.ownerId == request.auth.uid ||
+        projectDoc(projectId).data.ownerUid == request.auth.uid ||
+        projectDoc(projectId).data.developerId == request.auth.uid ||
+        projectDoc(projectId).data.developerUid == request.auth.uid ||
+        projectDoc(projectId).data.managerId == request.auth.uid ||
+        projectDoc(projectId).data.managerUid == request.auth.uid ||
+        projectDoc(projectId).data.attorneyId == request.auth.uid ||
+        (projectDoc(projectId).data.investorIds != null && request.auth.uid in projectDoc(projectId).data.investorIds) ||
+        (projectDoc(projectId).data.investors != null && request.auth.uid in projectDoc(projectId).data.investors) ||
+        isAdmin()
+      );
+    }
+
+    match /users/{userId} {
+      allow create: if isSelf(userId);
+      allow read: if isSelf(userId) || isAdmin();
+      allow update: if isSelf(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /parcels/{parcelId} {
+      allow read: if isApproved();
+      allow create: if isApproved() && hasRole(['owner']) && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isApproved() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.ownerUid == request.auth.uid ||
+        resource.data.managerId == request.auth.uid ||
+        resource.data.managerUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /listings/{listingId} {
+      allow read: if isApproved();
+      allow create: if isApproved() && hasRole(['owner']) && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isApproved() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.ownerUid == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /pitches/{pitchId} {
+      allow read: if isApproved();
+      allow create: if isApproved() && hasRole(['developer']) && request.resource.data.developerId == request.auth.uid;
+      allow update: if isApproved() && (
+        resource.data.developerId == request.auth.uid ||
+        resource.data.ownerId == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /projects/{projectId} {
+      allow read: if isProjectMember(projectId);
+      allow create: if isApproved() && hasRole(['owner', 'developer', 'admin']);
+      allow update: if isProjectMember(projectId) && hasRole(['owner', 'developer', 'attorney', 'property_manager', 'admin']);
+      allow delete: if isAdmin();
+    }
+
+    match /messages/{messageId} {
+      allow read: if isApproved() && resource.data.projectId != null && isProjectMember(resource.data.projectId);
+      allow create: if isApproved()
+        && request.resource.data.projectId != null
+        && isProjectMember(request.resource.data.projectId)
+        && request.resource.data.senderId == request.auth.uid;
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    match /investments/{investmentId} {
+      allow read: if isApproved() && (
+        resource.data.userId == request.auth.uid ||
+        (resource.data.projectId != null && isProjectMember(resource.data.projectId)) ||
+        isAdmin()
+      );
+      allow create: if isApproved() && hasRole(['investor']) && request.resource.data.userId == request.auth.uid;
+      allow update: if isApproved() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /funding/{fundingId} {
+      allow read: if isApproved() && (
+        resource.data.projectId != null && isProjectMember(resource.data.projectId)
+      );
+      allow create, update: if isApproved() && hasRole(['owner', 'developer', 'admin']);
+      allow delete: if isAdmin();
+    }
+
+    match /attorneys/{attorneyId} {
+      allow read: if isApproved();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /zoningAlerts/{alertId} {
+      allow read: if isApproved() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isApproved() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAdmin();
+      allow update: if isApproved() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /disclosureCheckpoints/{checkpointId} {
+      allow read: if isApproved();
+      allow create: if isApproved() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    match /termsCheckpoints/{checkpointId} {
+      allow read: if isApproved() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+      allow create: if isApproved() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    match /documentUploads/{uploadId} {
+      allow read: if isApproved() && (
+        resource.data.createdBy == request.auth.uid ||
+        (resource.data.projectId != null && isProjectMember(resource.data.projectId)) ||
+        isAdmin()
+      );
+      allow write: if false;
+    }
+
+    match /esignEnvelopes/{envelopeId} {
+      allow read: if isApproved() && (
+        (resource.data.projectId != null && isProjectMember(resource.data.projectId)) ||
+        resource.data.createdBy == request.auth.uid ||
+        isAdmin()
+      );
+      allow write: if false;
+    }
+
+    match /kycSessions/{sessionId} {
+      allow read: if isApproved() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow write: if false;
+    }
+
+    match /billingSessions/{sessionId} {
+      allow read: if isApproved() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+      allow write: if false;
+    }
+
+    match /cityConnectors/{connectorId} {
+      allow read: if isApproved();
+      allow write: if isAdmin();
+    }
+
+    match /zoningSnapshots/{snapshotId} {
+      allow read: if isApproved();
+      allow write: if isAdmin();
+    }
+
+    match /config/{configId} {
+      allow read: if isApproved();
+      allow write: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

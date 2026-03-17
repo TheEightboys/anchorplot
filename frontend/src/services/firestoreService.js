@@ -270,6 +270,76 @@ export async function listAuditLogs(maxCount = 50) {
 }
 
 // ================================
+//  DISCLOSURE + TERMS CHECKPOINTS
+// ================================
+export const disclosureCheckpointsRef = collection(db, 'disclosureCheckpoints');
+export const termsCheckpointsRef = collection(db, 'termsCheckpoints');
+
+export async function recordDisclosureCheckpoint({
+    listingId,
+    userId,
+    role,
+    action,
+    stage,
+    metadata = {},
+}) {
+    const payload = {
+        listingId,
+        userId,
+        role: role || 'unknown',
+        action,
+        stage,
+        metadata,
+        createdAt: serverTimestamp(),
+    };
+
+    await logAuditEvent({
+        action: `disclosure:${action}`,
+        actor: userId || 'unknown',
+        target: listingId || 'unknown-listing',
+        severity: 'info',
+        metadata: { stage, ...metadata },
+    });
+
+    return addDoc(disclosureCheckpointsRef, payload);
+}
+
+export async function listDisclosureCheckpoints(listingId) {
+    const q = query(disclosureCheckpointsRef, where('listingId', '==', listingId), orderBy('createdAt', 'desc'));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function acknowledgeTermsCheckpoint({
+    userId,
+    checkpoint,
+    accepted,
+    listingId = '',
+    projectId = '',
+    metadata = {},
+}) {
+    const payload = {
+        userId,
+        checkpoint,
+        accepted: Boolean(accepted),
+        listingId,
+        projectId,
+        metadata,
+        createdAt: serverTimestamp(),
+    };
+
+    await logAuditEvent({
+        action: `terms:${checkpoint}`,
+        actor: userId || 'unknown',
+        target: listingId || projectId || 'terms-checkpoint',
+        severity: 'info',
+        metadata: { accepted: Boolean(accepted), ...metadata },
+    });
+
+    return addDoc(termsCheckpointsRef, payload);
+}
+
+// ================================
 //  MESSAGES (In-platform messaging — non-circumvention)
 // ================================
 export const messagesRef = collection(db, 'messages');
@@ -313,6 +383,52 @@ export async function markNotificationRead(notifId) {
 }
 
 // ================================
+//  PROJECT DOCUMENT SIGNATURES + PAYMENTS
+// ================================
+export async function addProjectDocument(projectId, documentEntry) {
+    return updateDoc(doc(db, 'projects', projectId), {
+        documents: arrayUnion({
+            ...documentEntry,
+            id: documentEntry.id || `doc_${Date.now()}`,
+            uploadedAt: documentEntry.uploadedAt || new Date().toISOString(),
+        }),
+        updatedAt: serverTimestamp(),
+    });
+}
+
+export async function recordDocumentSignature(projectId, signatureEntry) {
+    return updateDoc(doc(db, 'projects', projectId), {
+        documentSignatures: arrayUnion({
+            ...signatureEntry,
+            signedAt: signatureEntry.signedAt || new Date().toISOString(),
+        }),
+        updatedAt: serverTimestamp(),
+    });
+}
+
+export async function appendProjectPaymentLog(projectId, paymentLog) {
+    return updateDoc(doc(db, 'projects', projectId), {
+        paymentLogs: arrayUnion({
+            ...paymentLog,
+            txId: paymentLog.txId || `tx_${Date.now()}`,
+            createdAt: paymentLog.createdAt || new Date().toISOString(),
+        }),
+        updatedAt: serverTimestamp(),
+    });
+}
+
+export async function appendProjectDistributionLog(projectId, distributionLog) {
+    return updateDoc(doc(db, 'projects', projectId), {
+        distributionLogs: arrayUnion({
+            ...distributionLog,
+            txId: distributionLog.txId || `dist_${Date.now()}`,
+            createdAt: distributionLog.createdAt || new Date().toISOString(),
+        }),
+        updatedAt: serverTimestamp(),
+    });
+}
+
+// ================================
 //  FUNDING TRACKER (Public Funding Programs)
 // ================================
 export const fundingRef = collection(db, 'funding');
@@ -327,6 +443,28 @@ export async function createFundingTracker(data) {
 
 export async function listFundingByProject(projectId) {
     const q = query(fundingRef, where('projectId', '==', projectId));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+// ================================
+//  DISPUTES (Admin)
+// ================================
+export const disputesRef = collection(db, 'disputes');
+
+export async function createDispute(data) {
+    return addDoc(disputesRef, {
+        ...data,
+        status: data.status || 'open',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+    });
+}
+
+export async function listDisputes(filters = {}) {
+    let q = disputesRef;
+    if (filters.status) q = query(q, where('status', '==', filters.status));
+    if (filters.projectId) q = query(q, where('projectId', '==', filters.projectId));
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }

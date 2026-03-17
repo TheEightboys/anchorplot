@@ -1,0 +1,56 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/(default)/documents/users/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.role == 'admin' ||
+        userDoc().data.role == 'admin'
+      );
+    }
+
+    function projectDoc(projectId) {
+      return get(/databases/(default)/documents/projects/$(projectId));
+    }
+
+    function isProjectMember(projectId) {
+      return isSignedIn() && (
+        projectDoc(projectId).data.ownerId == request.auth.uid ||
+        projectDoc(projectId).data.ownerUid == request.auth.uid ||
+        projectDoc(projectId).data.developerId == request.auth.uid ||
+        projectDoc(projectId).data.developerUid == request.auth.uid ||
+        projectDoc(projectId).data.managerId == request.auth.uid ||
+        projectDoc(projectId).data.managerUid == request.auth.uid ||
+        projectDoc(projectId).data.attorneyId == request.auth.uid ||
+        (projectDoc(projectId).data.investorIds != null && request.auth.uid in projectDoc(projectId).data.investorIds) ||
+        (projectDoc(projectId).data.investors != null && request.auth.uid in projectDoc(projectId).data.investors) ||
+        isAdmin()
+      );
+    }
+
+    match /documents/{projectId}/{allPaths=**} {
+      allow read: if isProjectMember(projectId);
+      allow write: if isProjectMember(projectId);
+    }
+
+    match /kyc/{userId}/{allPaths=**} {
+      allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+    }
+
+    match /public/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

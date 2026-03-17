@@ -6,6 +6,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import PageHeader from '../components/PageHeader';
 import { getParcelsForUser } from '../services/dashboardData';
+import { startBillingCheckout, openBillingPortal } from '../services/functionsService';
 
 export default function PropertyManagement() {
     const { userData } = useAuth();
@@ -13,6 +14,8 @@ export default function PropertyManagement() {
     const [selectedProperty, setSelectedProperty] = useState(null);
     const [loading, setLoading] = useState(true);
     const [tab, setTab] = useState('overview');
+    const [billingBusy, setBillingBusy] = useState(false);
+    const [billingMessage, setBillingMessage] = useState('');
 
     useEffect(() => {
         const fetchProperties = async () => {
@@ -71,6 +74,38 @@ export default function PropertyManagement() {
             { label: 'City Compliance Report', due: 'TBD', status: 'upcoming' },
         ];
 
+    const handleStartSubscription = async () => {
+        setBillingBusy(true);
+        setBillingMessage('');
+        try {
+            const session = await startBillingCheckout(import.meta.env.VITE_STRIPE_PM_PRICE_ID || 'mock_pm_price');
+            if (session?.url) {
+                window.open(session.url, '_blank', 'noopener,noreferrer');
+            }
+        } catch (error) {
+            console.error('Billing checkout failed:', error);
+            setBillingMessage('Unable to start billing checkout right now.');
+        } finally {
+            setBillingBusy(false);
+        }
+    };
+
+    const handleOpenPortal = async () => {
+        setBillingBusy(true);
+        setBillingMessage('');
+        try {
+            const portal = await openBillingPortal(userData?.stripeCustomerId || null);
+            if (portal?.url) {
+                window.open(portal.url, '_blank', 'noopener,noreferrer');
+            }
+        } catch (error) {
+            console.error('Billing portal failed:', error);
+            setBillingMessage('Unable to open billing portal.');
+        } finally {
+            setBillingBusy(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="h-full flex items-center justify-center text-text-secondary">
@@ -95,7 +130,26 @@ export default function PropertyManagement() {
     return (
         <div className="h-full overflow-y-auto">
             <div className="max-w-5xl mx-auto p-6 lg:p-8">
-                <PageHeader title="Property Management" subtitle="Manage stabilized properties, rent rolls, maintenance and compliance reporting." />
+                <PageHeader
+                    title="Property Management"
+                    subtitle="Manage stabilized properties, rent rolls, maintenance and compliance reporting."
+                    actions={
+                        <div className="flex items-center gap-2">
+                            <button className="btn btn-secondary text-xs px-3 py-2" onClick={handleOpenPortal} disabled={billingBusy}>
+                                Billing Portal
+                            </button>
+                            <button className="btn btn-primary text-xs px-3 py-2" onClick={handleStartSubscription} disabled={billingBusy}>
+                                {billingBusy ? 'Processing...' : 'Start PM Subscription'}
+                            </button>
+                        </div>
+                    }
+                />
+
+                {billingMessage && (
+                    <div className="mb-4 rounded-xl border border-danger/20 bg-danger/5 px-4 py-2 text-xs text-danger">
+                        {billingMessage}
+                    </div>
+                )}
 
                 {/* Property Selector */}
                 <div className="flex gap-3 mb-6 overflow-x-auto">

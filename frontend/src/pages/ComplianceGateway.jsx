@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { listAttorneys, updateProject } from '../services/firestoreService';
 import { getProjectsForUser } from '../services/dashboardData';
+import { startKycSession } from '../services/functionsService';
 import PageHeader from '../components/PageHeader';
 
 const RESTRICTED_STATES = ['CA', 'NY', 'NJ', 'CT', 'TX'];
@@ -21,6 +22,7 @@ const ComplianceGateway = () => {
     const [selected, setSelected] = useState(null);
     const [assigningAttorneyId, setAssigningAttorneyId] = useState('');
     const [assignmentError, setAssignmentError] = useState('');
+    const [kycBusy, setKycBusy] = useState(false);
 
     useEffect(() => {
         const fetchComplianceData = async () => {
@@ -140,6 +142,21 @@ const ComplianceGateway = () => {
         a.jurisdiction?.some(j => j.toLowerCase().includes(searchQuery.toLowerCase()))
     );
 
+    const handleStartKyc = async () => {
+        setKycBusy(true);
+        try {
+            const session = await startKycSession();
+            if (session?.url) {
+                window.open(session.url, '_blank', 'noopener,noreferrer');
+            }
+        } catch (error) {
+            console.error('KYC session creation failed:', error);
+            setAssignmentError('Unable to start KYC verification right now.');
+        } finally {
+            setKycBusy(false);
+        }
+    };
+
     return (
         <div className="h-[calc(100vh-73px)] overflow-y-auto bg-background p-6 lg:p-8">
             <div className="max-w-6xl mx-auto">
@@ -150,9 +167,14 @@ const ComplianceGateway = () => {
                     subtitle="Jurisdiction-gated attorney selection. All deals in restricted zones require platform-vetted legal counsel."
                     badge="Attorney Gated"
                     actions={
-                        <button className="btn btn-secondary flex items-center gap-2 text-sm" onClick={() => navigate('/app/attorneys')}>
-                            <Plus size={14} /> Invite Attorney
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button className="btn btn-secondary flex items-center gap-2 text-sm" onClick={handleStartKyc} disabled={kycBusy}>
+                                <ShieldCheck size={14} /> {kycBusy ? 'Starting KYC...' : 'Start KYC'}
+                            </button>
+                            <button className="btn btn-secondary flex items-center gap-2 text-sm" onClick={() => navigate('/app/attorneys')}>
+                                <Plus size={14} /> Invite Attorney
+                            </button>
+                        </div>
                     }
                 />
 

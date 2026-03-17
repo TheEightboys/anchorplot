@@ -194,6 +194,37 @@ npm run preview      # Preview production build
 npm run lint         # Run ESLint
 ```
 
+## 🔧 Firebase Backend (Functions + Rules)
+
+The repo now includes a Firebase backend stack under `firebase/` with:
+
+- Firestore + Storage rules
+- Cloud Functions for signed URLs, zoning jobs, e-sign/KYC/billing hooks
+- Scheduled zoning ingestion jobs
+
+Quick start:
+
+```bash
+npm run backend:install
+npm run backend:check
+npm run backend:deploy
+```
+
+See `FIREBASE_BACKEND_SETUP.md` for full env and deploy instructions.
+
+## 📱 Mobile App (Owner/Developer-first)
+
+A mobile scaffold is available under `mobile/` using Expo + Firebase.
+
+Quick start:
+
+```bash
+npm run mobile:install
+npm run mobile:start
+```
+
+See `mobile/README.md` for setup details.
+
 ### Code Style
 
 - Use functional components with hooks

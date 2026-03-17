@@ -5,7 +5,17 @@ import {
     Lock, Unlock, Shield, ChevronRight, ArrowLeft, DollarSign, Users, Info
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { getListing, getParcel, incrementListingViews, createPitch } from '../services/firestoreService';
+import {
+    getListing,
+    getParcel,
+    incrementListingViews,
+    createPitch,
+    createInvestment,
+    updateListing,
+    recordDisclosureCheckpoint,
+    acknowledgeTermsCheckpoint,
+    listDisclosureCheckpoints,
+} from '../services/firestoreService';
 
 const DISCLOSURE_STAGES = [
     { key: 'browse', label: 'Browse', icon: Eye, desc: 'Anonymized view' },
@@ -17,6 +27,8 @@ const DISCLOSURE_STAGES = [
     { key: 'revealed', label: 'Full Reveal', icon: Unlock, desc: 'Property revealed' },
 ];
 
+const ATTORNEY_REQUIRED_STATES = ['CA', 'NY', 'NJ', 'CT', 'TX'];
+
 export default function PropertyDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -26,16 +38,33 @@ export default function PropertyDetail() {
     const [showPitchForm, setShowPitchForm] = useState(false);
     const [pitchData, setPitchData] = useState({ proposal: '', budget: '', timeline: '', experience: '', affordableCapability: '' });
     const [submitting, setSubmitting] = useState(false);
+    const [commitAmount, setCommitAmount] = useState('');
+    const [submittingCommitment, setSubmittingCommitment] = useState(false);
+    const [checkpointSaving, setCheckpointSaving] = useState(false);
+    const [checkpointMessage, setCheckpointMessage] = useState('');
+    const [disclosureHistory, setDisclosureHistory] = useState([]);
+    const [gateChecks, setGateChecks] = useState({
+        nonCircumvention: false,
+        feeAck: false,
+        termsAccepted: false,
+        attorneySelected: false,
+    });
 
     useEffect(() => {
         async function load() {
             try {
-                const l = await getListing(id);
+                const [l, checkpointData] = await Promise.all([
+                    getListing(id),
+                    listDisclosureCheckpoints(id),
+                ]);
+
                 if (l) {
                     const p = await getParcel(l.parcelId);
                     setProperty({ ...p, ...l, id: l.id, parcelId: p.id });
                     incrementListingViews(id);
                 }
+
+                setDisclosureHistory(checkpointData || []);
             } catch (e) { console.error(e); }
             setLoading(false);
         }
@@ -53,10 +82,130 @@ export default function PropertyDetail() {
                 ...pitchData,
                 status: 'pending',
             });
+
+            await recordDisclosureCheckpoint({
+                listingId: id,
+                userId: userData?.uid,
+                role: userData?.role,
+                action: 'pitch_submitted',
+                stage: property?.disclosureStage || 'pitch',
+                metadata: {
+                    proposalLength: pitchData.proposal.length,
+                    proposedBudget: pitchData.budget || null,
+                },
+            });
+
             setShowPitchForm(false);
             setPitchData({ proposal: '', budget: '', timeline: '', experience: '', affordableCapability: '' });
+            setCheckpointMessage('Pitch submitted successfully. Owner review required before full reveal.');
         } catch (e) { console.error(e); }
         setSubmitting(false);
+    };
+
+    const handleGateCheckChange = async (key, checked) => {
+        setGateChecks(prev => ({ ...prev, [key]: checked }));
+
+        if (!checked || !userData?.uid) {
+            return;
+        }
+
+        try {
+            await acknowledgeTermsCheckpoint({
+                userId: userData.uid,
+                checkpoint: key,
+                accepted: true,
+                listingId: id,
+                metadata: { role: userData.role },
+            });
+        } catch (error) {
+            console.error('Failed to persist gate checkpoint:', error);
+        }
+    };
+
+    const handleRequestReveal = async () => {
+        if (!userData?.uid || !property?.id) return;
+
+        setCheckpointSaving(true);
+        setCheckpointMessage('');
+
+        const canRevealNow = gateChecks.nonCircumvention
+            && gateChecks.feeAck
+            && gateChecks.termsAccepted
+            && (!requiresAttorney || gateChecks.attorneySelected)
+            && ['accepted', 'attorney', 'fee_ack', 'revealed'].includes(String(property.disclosureStage || '').toLowerCase());
+
+        try {
+            const targetStage = canRevealNow ? 'revealed' : 'fee_ack';
+
+            await updateListing(property.id, { disclosureStage: targetStage });
+            await recordDisclosureCheckpoint({
+                listingId: property.id,
+                userId: userData.uid,
+                role: userData.role,
+                action: canRevealNow ? 'reveal_granted' : 'reveal_requested',
+                stage: targetStage,
+                metadata: {
+                    requiresAttorney,
+                    acceptedPitchRequired: true,
+                    gateChecks,
+                },
+            });
+
+            setProperty(prev => prev ? { ...prev, disclosureStage: targetStage } : prev);
+            setDisclosureHistory(prev => ([{
+                id: `local_${Date.now()}`,
+                action: canRevealNow ? 'reveal_granted' : 'reveal_requested',
+                stage: targetStage,
+                createdAt: new Date().toISOString(),
+                userId: userData.uid,
+            }, ...prev]));
+
+            setCheckpointMessage(
+                canRevealNow
+                    ? 'Full reveal unlocked for this listing.'
+                    : 'Reveal request logged. Full reveal unlocks after accepted pitch and required legal checkpoints.'
+            );
+        } catch (error) {
+            console.error('Failed to process disclosure request:', error);
+            setCheckpointMessage('Could not update disclosure stage right now. Please try again.');
+        } finally {
+            setCheckpointSaving(false);
+        }
+    };
+
+    const handleExpressInvestmentInterest = async () => {
+        if (!userData?.uid || !property?.id || !commitAmount) return;
+
+        setSubmittingCommitment(true);
+        setCheckpointMessage('');
+        try {
+            await createInvestment({
+                userId: userData.uid,
+                projectId: property.projectId || property.id,
+                projectName: property.title || `${property.city || 'Unknown'} Opportunity`,
+                city: property.city || 'Unknown City',
+                amount: Number(commitAmount),
+                committed: Number(commitAmount),
+                status: 'pending_review',
+            });
+
+            await recordDisclosureCheckpoint({
+                listingId: property.id,
+                userId: userData.uid,
+                role: userData.role,
+                action: 'investment_interest_submitted',
+                stage: property.disclosureStage || 'interest',
+                metadata: { commitment: Number(commitAmount) },
+            });
+
+            setCheckpointMessage('Investment interest submitted and logged in the deal trail.');
+            setCommitAmount('');
+        } catch (error) {
+            console.error('Failed to submit investor commitment:', error);
+            setCheckpointMessage('Could not submit investment interest right now.');
+        } finally {
+            setSubmittingCommitment(false);
+        }
     };
 
     if (loading) return (
@@ -77,6 +226,7 @@ export default function PropertyDetail() {
     const isOwner = userData?.role === 'owner' && property.ownerId === userData?.uid;
     const isDeveloper = userData?.role === 'developer';
     const isInvestor = userData?.role === 'investor';
+    const requiresAttorney = ATTORNEY_REQUIRED_STATES.includes(String(property.state || property.propertyState || '').toUpperCase());
 
     return (
         <div className="h-full overflow-y-auto">
@@ -138,6 +288,59 @@ export default function PropertyDetail() {
                         </p>
                     </div>
                 </div>
+
+                {/* Controlled disclosure checkpoints */}
+                {(isDeveloper || isInvestor) && (
+                    <div className="bg-surface border border-border-light rounded-2xl p-5 mb-6 shadow-sm">
+                        <h3 className="text-sm font-bold text-text-primary mb-3">Controlled Disclosure Checkpoints</h3>
+                        <p className="text-xs text-text-secondary mb-4">
+                            Contact details and full identifiers remain hidden until checkpoints are accepted and the project reaches accepted-pitch stage.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                            {[
+                                ['nonCircumvention', 'Accept non-circumvention controls'],
+                                ['feeAck', 'Acknowledge platform fees'],
+                                ['termsAccepted', 'Accept disclosure and messaging terms'],
+                                ...(requiresAttorney ? [['attorneySelected', 'Confirm attorney selection or invite']] : []),
+                            ].map(([key, label]) => (
+                                <label key={key} className="flex items-center gap-2 p-3 rounded-xl border border-border-light bg-surface-element/50 text-xs font-medium text-text-primary">
+                                    <input
+                                        type="checkbox"
+                                        checked={Boolean(gateChecks[key])}
+                                        onChange={event => handleGateCheckChange(key, event.target.checked)}
+                                        className="accent-primary"
+                                    />
+                                    <span>{label}</span>
+                                </label>
+                            ))}
+                        </div>
+                        <button
+                            onClick={handleRequestReveal}
+                            disabled={checkpointSaving}
+                            className="btn btn-secondary text-sm px-4 py-2"
+                        >
+                            {checkpointSaving ? 'Saving...' : 'Request Full Reveal'}
+                        </button>
+
+                        {checkpointMessage && (
+                            <p className="mt-3 text-xs text-primary font-medium">{checkpointMessage}</p>
+                        )}
+
+                        {disclosureHistory.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-border-light">
+                                <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-2">Recent Audit Trail</p>
+                                <div className="space-y-1.5">
+                                    {disclosureHistory.slice(0, 3).map((event) => (
+                                        <div key={event.id} className="text-xs text-text-secondary flex items-center justify-between">
+                                            <span className="capitalize">{String(event.action || 'checkpoint').replaceAll('_', ' ')}</span>
+                                            <span>{event.stage || '—'}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Property Details Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
@@ -244,9 +447,23 @@ export default function PropertyDetail() {
                                 </button>
                             )}
                             {isInvestor && (
-                                <button className="btn btn-primary w-full py-3 text-sm font-bold flex items-center justify-center gap-2">
-                                    <DollarSign size={15} /> Express Investment Interest
-                                </button>
+                                <div className="space-y-2">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={commitAmount}
+                                        onChange={event => setCommitAmount(event.target.value)}
+                                        placeholder="Commitment amount (USD)"
+                                        className="w-full bg-surface border border-border-light rounded-xl py-2.5 px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                                    />
+                                    <button
+                                        onClick={handleExpressInvestmentInterest}
+                                        disabled={!commitAmount || submittingCommitment}
+                                        className="btn btn-primary w-full py-3 text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                        <DollarSign size={15} /> {submittingCommitment ? 'Submitting...' : 'Express Investment Interest'}
+                                    </button>
+                                </div>
                             )}
                             {isOwner && (
                                 <div className="text-center text-xs text-text-secondary py-2">This is your listing</div>

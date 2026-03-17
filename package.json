@@ -2,6 +2,12 @@
     "name": "anchorplot-root",
     "private": true,
     "scripts": {
-        "build": "cd frontend && npm install && npm run build"
+        "build": "cd frontend && npm install && npm run build",
+        "backend:install": "cd firebase/functions && npm install",
+        "backend:check": "cd firebase/functions && npm run check",
+        "backend:serve": "firebase emulators:start",
+        "backend:deploy": "firebase deploy --only functions,firestore:rules,storage",
+        "mobile:install": "cd mobile && npm install",
+        "mobile:start": "cd mobile && npm run start"
     }
 }
